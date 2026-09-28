@@ -1,122 +1,50 @@
 // src/navigation/AppTabs.js
+// Quatro destinos com rótulo sempre visível. Ícones vetoriais (Feather).
 import React from 'react';
-import { Image, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context'; // ✅
-import useAccessibility from '../hooks/useAccessibility';
-
 import NovoRegistro from '../pages/Main/NovoRegistro';
 import Buscar from '../pages/Main/Buscar';
-
-// Extras
 import Conta from '../pages/Extras/Conta';
-import Configuracoes from '../pages/Extras/Configuracoes';
-import Sobre from '../pages/Extras/Sobre';
-import Duvidas from '../pages/Extras/Duvidas';
-import Creditos from '../pages/Extras/Creditos';
+import MoreStack from './MoreStack';
+import { Icon } from '../ui';
+import { useTheme } from '../theme/ThemeProvider';
 
 const Tab = createBottomTabNavigator();
 
-function TabIcon({ source, focused, highContrast }) {
-  return (
-    <Image
-      source={source}
-      style={[
-        styles.icon,
-        focused
-          ? (highContrast ? styles.iconFocusedHC : styles.iconFocused)
-          : (highContrast ? styles.iconUnfocusedHC : styles.iconUnfocused),
-      ]}
-    />
-  );
-}
-
-const tabIcons = {
-  Buscar: require('../assets/images/Pesquisar.png'),
-  NovoRegistro: require('../assets/images/Inserir.png'),
-};
-
-const BuscarIcon = ({ focused }) => {
-  const { highContrast } = useAccessibility();
-  return <TabIcon source={tabIcons.Buscar} focused={focused} highContrast={highContrast} />;
-};
-
-const NovoRegistroIcon = ({ focused }) => {
-  const { highContrast } = useAccessibility();
-  return <TabIcon source={tabIcons.NovoRegistro} focused={focused} highContrast={highContrast} />;
-};
+const tabIcon = (name) => ({ color }) => <Icon name={name} size={24} color={color} />;
 
 export default function AppTabs() {
-  const { highContrast } = useAccessibility();
-  const insets = useSafeAreaInsets(); // ✅ pega as safe areas (top/bottom/notch)
+  const { colors, type } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
-      initialRouteName="NovoRegistro"
+      initialRouteName="Registrar"
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true,
-        tabBarStyle: [
-          styles.tabBar,
-          {
-            paddingBottom: insets.bottom, // ✅ agora respeita a área segura inferior
-            height: 64 + insets.bottom,   // garante espaço extra
-          },
-          highContrast && { backgroundColor: '#000', borderTopColor: '#FFD700' },
-        ],
-        tabBarShowLabel: false,
-        sceneContainerStyle: { backgroundColor: highContrast ? '#000' : '#FFF3E0' },
-        safeAreaInsets: { bottom: 0 }, // 👈 evita duplicar padding no Android/iOS
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.inkMuted,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.line,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          // Altura explícita: ícone + rótulo cabem sem encolher (o rótulo era cortado).
+          height: 60 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: insets.bottom,
+        },
+        // lineHeight explícito: o rótulo não é cortado e não cresce demais com texto ampliado.
+        tabBarLabelStyle: { fontSize: Math.min(type.caption.fontSize - 1, 14), lineHeight: 16, fontWeight: '600' },
+        sceneStyle: { backgroundColor: colors.canvas },
       }}
     >
-      {/* Extras ocultos */}
-      <Tab.Screen name="Conta" component={Conta} options={{ tabBarButton: () => null }} />
-
-      <Tab.Screen
-        name="Buscar"
-        component={Buscar}
-        options={{
-          tabBarItemStyle: styles.tabItemHalf,
-          tabBarIcon: BuscarIcon,
-        }}
-      />
-
-      <Tab.Screen
-        name="Configurações"
-        component={Configuracoes}
-        options={{ tabBarItemStyle: styles.tabItemZero, tabBarButton: () => null }}
-      />
-      <Tab.Screen name="Sobre" component={Sobre} options={{ tabBarButton: () => null }} />
-      <Tab.Screen name="Dúvidas" component={Duvidas} options={{ tabBarButton: () => null }} />
-
-      <Tab.Screen
-        name="NovoRegistro"
-        component={NovoRegistro}
-        options={{ tabBarIcon: NovoRegistroIcon }}
-      />
-
-      <Tab.Screen name="Créditos" component={Creditos} options={{ tabBarButton: () => null }} />
+      <Tab.Screen name="Registrar" component={NovoRegistro} options={{ tabBarIcon: tabIcon('plus-circle') }} />
+      <Tab.Screen name="Buscar" component={Buscar} options={{ tabBarIcon: tabIcon('search') }} />
+      <Tab.Screen name="Conta" component={Conta} options={{ tabBarIcon: tabIcon('user') }} />
+      <Tab.Screen name="Mais" component={MoreStack} options={{ tabBarIcon: tabIcon('menu') }} />
     </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#300355',
-    borderTopColor: '#6407b2',
-    borderTopWidth: 2,
-    height: 60,
-  },
-  icon: {
-    width: 70,
-    height: 70,
-    marginTop: 20,
-  },
-  iconFocused: { tintColor: '#FFF' },
-  iconUnfocused: { tintColor: '#CCC' },
-  iconFocusedHC: { tintColor: '#FFD700' },
-  iconUnfocusedHC: { tintColor: '#AAAAAA' },
-
-  tabItemHalf: { flex: 0.5 },
-  tabItemZero: { flex: 0 },
-});

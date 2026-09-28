@@ -1,99 +1,121 @@
 // src/pages/Auth/Login.js
-import React, { useState } from "react";
-import { View, Text, ScrollView, Alert, Image } from "react-native";
-import CustomInput from "../../components/Input/CustomInput";
-import CustomButton from "../../components/Button/CustomButton";
-import TextButton from "../../components/TextButton/TextButton";
-import styles from "./styles";
+import React, { useRef, useState } from "react";
+import { View, StyleSheet } from "react-native";
+import { Button, TextField, Text, useToast } from "../../ui";
+import AuthLayout from "./AuthLayout";
 import useAuth from "../../hooks/useAuth";
+import { useTheme } from "../../theme/ThemeProvider";
 import logger from "../../utils/logger";
 
-const Login = ({ navigation }) => {
+const EMAIL_RE = /\S+@\S+\.\S+/;
+
+const loginErrorMessage = (code) => {
+  switch (code) {
+    case "auth/user-not-found":
+      return "Usuário não encontrado.";
+    case "auth/wrong-password":
+      return "Senha incorreta.";
+    case "auth/invalid-credential":
+      return "E-mail ou senha incorretos.";
+    case "auth/invalid-email":
+      return "E-mail inválido.";
+    case "auth/too-many-requests":
+      return "Muitas tentativas. Aguarde um pouco e tente de novo.";
+    default:
+      return "Não foi possível entrar. Verifique sua conexão e tente novamente.";
+  }
+};
+
+const styles = StyleSheet.create({
+  center: { textAlign: "center" },
+});
+
+export default function Login({ navigation }) {
   const { signIn } = useAuth();
+  const toast = useToast();
+  const { spacing } = useTheme();
+  const passwordRef = useRef(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const validateEmail = (value) => /\S+@\S+\.\S+/.test(value);
+  const validate = () => {
+    const next = {};
+    if (!email.trim()) next.email = "Digite seu e-mail.";
+    else if (!EMAIL_RE.test(email)) next.email = "Digite um e-mail válido.";
+    if (!password) next.password = "Digite sua senha.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Atenção", "Preencha todos os campos.");
-      return;
-    }
-    if (!validateEmail(email)) {
-      Alert.alert("Erro", "Digite um e-mail válido.");
-      return;
-    }
+    if (loading || !validate()) return;
 
     try {
       setLoading(true);
       await signIn(email.trim(), password);
-      // ✅ Não precisa navegar manualmente.
-      // O RootNavigation muda sozinho quando "user" vira não-null.
+      // Sem navegação manual: RootNavigation troca de stack quando "user" existe.
     } catch (error) {
       logger.error("Login: falha no login", error);
-      let mensagem = "Não foi possível fazer login.";
-      if (error?.code === "auth/user-not-found") mensagem = "Usuário não encontrado.";
-      else if (error?.code === "auth/wrong-password") mensagem = "Senha incorreta.";
-      else if (error?.code === "auth/invalid-email") mensagem = "E-mail inválido.";
-      Alert.alert("Erro", mensagem);
+      toast.show(loginErrorMessage(error?.code), { tone: "danger" });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.logoContainer}>
-        <Image
-          source={require("../../assets/images/Logo.png")}
-          style={styles.logo}
-          resizeMode="contain"
+    <AuthLayout title="Entrar" subtitle="Acesse com o e-mail da sua conta.">
+      <View style={{ gap: spacing.lg }}>
+        <TextField
+          label="E-mail"
+          value={email}
+          onChangeText={setEmail}
+          error={errors.email}
+          placeholder="nome@email.com"
+          leadingIcon="mail"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          textContentType="emailAddress"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+        />
+
+        <TextField
+          ref={passwordRef}
+          label="Senha"
+          value={password}
+          onChangeText={setPassword}
+          error={errors.password}
+          placeholder="Digite sua senha"
+          leadingIcon="lock"
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="current-password"
+          textContentType="password"
+          returnKeyType="go"
+          onSubmitEditing={handleLogin}
         />
       </View>
 
-      <Text style={styles.title}>LOGIN</Text>
+      <View style={{ gap: spacing.sm }}>
+        <Button title="Entrar" onPress={handleLogin} loading={loading} />
+        <Button
+          title="Esqueci minha senha"
+          variant="ghost"
+          onPress={() => navigation.navigate("EsqueciSenha")}
+        />
+      </View>
 
-      <CustomInput
-        label="Email"
-        value={email}
-        onChangeText={setEmail}
-        placeholder="seuemail@gmail.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      <CustomInput
-        label="Senha"
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Digite sua senha"
-        secureTextEntry
-        showPasswordToggle
-      />
-
-      <CustomButton
-        title={loading ? "Entrando..." : "ENTRAR"}
-        onPress={handleLogin}
-        loading={loading}
-        disabled={loading}
-        style={styles.loginButton}
-      />
-
-      <TextButton
-        title="Esqueci minha senha"
-        onPress={() => navigation.navigate("EsqueciSenha")}
-        style={styles.forgotPassword}
-      />
-
-      <TextButton
-        title="Não tem conta? Criar agora"
-        onPress={() => navigation.navigate("Cadastro")}
-        style={styles.forgotPassword}
-      />
-    </ScrollView>
+      <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+        <Text variant="body" tone="muted" style={styles.center}>
+          Ainda não tem conta?
+        </Text>
+        <Button title="Criar conta" variant="secondary" onPress={() => navigation.navigate("Cadastro")} />
+      </View>
+    </AuthLayout>
   );
-};
-
-export default Login;
+}

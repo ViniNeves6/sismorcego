@@ -9,10 +9,10 @@ import useAuth from "./useAuth";
 import { buscarRegistrosLocais } from "../database/registro";
 
 /**
- * Hook responsÃ¡vel por listar registros (Firestore quando logado, senÃ£o SQLite),
+ * Hook responsável por listar registros (Firestore quando logado, senão SQLite),
  * gerar e compartilhar PDF.
  *
- * CorreÃ§Ã£o 3/12 (endurecer dados locais):
+ * Correção 3/12 (endurecer dados locais):
  * - Quando estiver sem login/Firestore, o "Buscar" deve listar do SQLite.
  * - PDF usa campos normalizados (nomeACS, tratamento, etc).
  */
@@ -37,8 +37,8 @@ export default function useRegistro() {
 
   /**
    * Lista registros:
-   * - Se houver usuÃ¡rio logado e Firestore disponÃ­vel: busca do Firestore
-   * - Caso contrÃ¡rio: busca do SQLite local
+   * - Se houver usuário logado e Firestore disponível: busca do Firestore
+   * - Caso contrário: busca do SQLite local
    */
   const listarRegistros = async () => {
     try {
@@ -52,7 +52,7 @@ export default function useRegistro() {
         }));
       }
 
-      // Fallback local (SQLite) â€” essencial para "Buscar" no modo offline/teste
+      // Fallback local (SQLite) — essencial para "Buscar" no modo offline/teste
       const locais = await buscarRegistrosLocais();
       return locais.map((r) => ({
         id: String(r.id),
@@ -81,7 +81,7 @@ export default function useRegistro() {
       return null;
     }
 
-    // NormalizaÃ§Ã£o de campos (Firestore x SQLite)
+    // Normalização de campos (Firestore x SQLite)
     const nomeACS = registro.nomeACS ?? registro.nomeAcs ?? "-";
     const nomeAgredido = registro.nomeAgredido ?? "-";
     const municipio = registro.municipio ?? "-";
@@ -92,7 +92,7 @@ export default function useRegistro() {
     const dataRegistro = registro.dataRegistro ?? "-";
     const dataAgressao = registro.dataAgressao ?? "-";
 
-    // Arrays (SQLite salva como array no domÃ­nio; Firestore pode vir como string)
+    // Arrays (SQLite salva como array no domínio; Firestore pode vir como string)
     const animais = Array.isArray(registro.animais) ? formatArray(registro.animais) : registro.animalAgredido ?? "-";
     const fontesLuz = Array.isArray(registro.fontesLuz) ? formatArray(registro.fontesLuz) : registro.fonteLuz ?? "-";
     const circunstancias = Array.isArray(registro.circunstancias)
@@ -108,14 +108,14 @@ export default function useRegistro() {
       <p><b>Data do Registro:</b> ${escapeHtml(dataRegistro)}</p>
       <p><b>Nome do Agredido:</b> ${escapeHtml(nomeAgredido)}</p>
       <p><b>Sexo:</b> ${escapeHtml(sexo)}</p>
-      <p><b>Tratamento antirrÃ¡bico:</b> ${escapeHtml(tratamento)}</p>
-      <p><b>Data da agressÃ£o:</b> ${escapeHtml(dataAgressao)}</p>
-      <p><b>MunicÃ­pio da agressÃ£o:</b> ${escapeHtml(municipio)}</p>
-      <p><b>EndereÃ§o da agressÃ£o:</b> ${escapeHtml(endereco)}</p>
-      <p><b>Local da agressÃ£o:</b> ${escapeHtml(local)}</p>
+      <p><b>Tratamento antirrábico:</b> ${escapeHtml(tratamento)}</p>
+      <p><b>Data da agressão:</b> ${escapeHtml(dataAgressao)}</p>
+      <p><b>Município da agressão:</b> ${escapeHtml(municipio)}</p>
+      <p><b>Endereço da agressão:</b> ${escapeHtml(endereco)}</p>
+      <p><b>Local da agressão:</b> ${escapeHtml(local)}</p>
       <p><b>Animal agredido no local:</b> ${escapeHtml(animais)}</p>
       <p><b>Fonte de luz:</b> ${escapeHtml(fontesLuz)}</p>
-      <p><b>CircunstÃ¢ncia:</b> ${escapeHtml(circunstancias)}</p>
+      <p><b>Circunstância:</b> ${escapeHtml(circunstancias)}</p>
       <p><b>Latitude:</b> ${escapeHtml(latitude)}</p>
       <p><b>Longitude:</b> ${escapeHtml(longitude)}</p>
     `;
@@ -130,7 +130,7 @@ export default function useRegistro() {
         directory: "docs",
       });
 
-      if (!file?.filePath) throw new Error("Caminho do PDF nÃ£o retornado");
+      if (!file?.filePath) throw new Error("Caminho do PDF não retornado");
       return file.filePath;
     } catch (error) {
       logger.error("useRegistro: gerarPDF failed", error);

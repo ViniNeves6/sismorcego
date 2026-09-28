@@ -1,198 +1,85 @@
-﻿// src/pages/Extras/Sobre.js
-import React, { useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  Linking,
-  Alert,
-} from 'react-native';
-import Header from '../../components/Header/Header';
-import useAccessibility from '../../hooks/useAccessibility';
+// src/pages/Extras/Sobre.js
+import React from 'react';
+import { Image, Linking, View, StyleSheet } from 'react-native';
+import { ScrollScreen, ScreenHeader, Section, Card, Text, ListGroup, ListRow, Icon, useToast } from '../../ui';
+import { useTheme } from '../../theme/ThemeProvider';
+import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 import logger from '../../utils/logger';
 
-// Ícones e links
-const socialLinks = [
+const EVENTOS = [
   {
-    nome: 'Instagram',
-    imagem: require('../../assets/images/instagram.png'),
-    url: 'https://www.instagram.com/saudeunica_amazoniabr/?app=desktop',
+    titulo: 'I Seminário interno: Análise de risco da raiva na Amazônia',
+    imagem: require('../../assets/images/programacao.png'),
+    aspectRatio: 16 / 9,
   },
   {
-    nome: 'Twitter/X',
-    imagem: require('../../assets/images/twitter.png'),
-    url: 'https://x.com/saudeamazoniabr?app=desktop',
-  },
-  {
-    nome: 'Youtube',
-    imagem: require('../../assets/images/youtube.png'),
-    url: 'https://www.youtube.com/@SaudeUnicaAmazoniaBR?app=desktop',
+    titulo: 'DRA - Curuçá 2024',
+    imagem: require('../../assets/images/DRA.png'),
+    aspectRatio: 3 / 2,
   },
 ];
 
-export default function Sobre() {
-  const { fontScale, highContrast, textToSpeechEnabled, speak } = useAccessibility();
+const REDES = [
+  { nome: 'Instagram', icon: 'instagram', url: 'https://www.instagram.com/saudeunica_amazoniabr/?app=desktop' },
+  { nome: 'Twitter/X', icon: 'twitter', url: 'https://x.com/saudeamazoniabr?app=desktop' },
+  { nome: 'YouTube', icon: 'youtube', url: 'https://www.youtube.com/@SaudeUnicaAmazoniaBR?app=desktop' },
+];
 
-  useEffect(() => {
-    if (textToSpeechEnabled) {
-      speak('Tela Sobre. Informações e eventos relacionados ao projeto.');
-    }
-  }, [textToSpeechEnabled, speak]);
-
-  const eventos = [
-    {
-      titulo: 'I Seminário interno: Análise de risco da raiva na Amazônia',
-      imagem: require('../../assets/images/programacao.png'),
-    },
-    {
-      titulo: 'DRA - Curuçá 2024',
-      imagem: require('../../assets/images/DRA.png'),
-    },
-  ];
+export default function Sobre({ navigation }) {
+  const { spacing, radius, colors } = useTheme();
+  const toast = useToast();
+  useSpeakOnMount('Tela Sobre. Informações e eventos relacionados ao projeto.');
 
   const abrirLink = async (url) => {
     try {
       await Linking.openURL(url);
     } catch (err) {
       logger.error('Sobre: erro', err);
-      Alert.alert('Erro', 'Não foi possível abrir o link.');
+      toast.show('Não foi possível abrir o link.', { tone: 'danger' });
     }
   };
 
   return (
-    <View style={[styles.container, highContrast && styles.containerHC]}>
-      <Header title="Sobre" />
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text
-          style={[
-            styles.titulo,
-            { fontSize: 24 * fontScale },
-            highContrast && styles.tituloHC,
-          ]}
-        >
-          Sobre
-        </Text>
-
-        {eventos.map((evento, index) => (
-          <View
-            key={index}
-            style={[styles.containerFeed, highContrast && styles.containerFeedHC]}
-          >
-            <Image source={evento.imagem} style={styles.imgFeed} />
-            <Text
-              style={[
-                styles.textoFeed,
-                { fontSize: 18 * fontScale },
-                highContrast && styles.textoFeedHC,
-              ]}
-            >
-              {evento.titulo}
-            </Text>
-          </View>
-        ))}
-
-        {/* Redes Sociais */}
-        <Text
-          style={[
-            styles.subtitulo,
-            { fontSize: 20 * fontScale },
-            highContrast && styles.tituloHC,
-          ]}
-        >
-          Redes Sociais
-        </Text>
-
-        <View style={styles.redesContainer}>
-          {socialLinks.map((rede, index) => (
-            <TouchableOpacity
-              key={index}
-              onPress={() => abrirLink(rede.url)}
-              accessibilityLabel={`Abrir ${rede.nome}`}
-              style={styles.iconWrapper}
-            >
+    <ScrollScreen
+      header={<ScreenHeader title="Sobre o projeto" onBack={() => navigation.goBack()} />}
+      contentContainerStyle={{ gap: spacing.xl }}
+    >
+      <Section title="Eventos">
+        {EVENTOS.map((evento) => (
+          <Card key={evento.titulo}>
+            <View style={{ gap: spacing.md }}>
               <Image
-                source={rede.imagem}
+                source={evento.imagem}
+                resizeMode="cover"
+                accessibilityLabel={evento.titulo}
                 style={[
-                  styles.socialIcon,
-                  highContrast && styles.goldTint, // estilo extraído
+                  styles.image,
+                  { aspectRatio: evento.aspectRatio, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
                 ]}
               />
-            </TouchableOpacity>
+              <Text variant="bodyStrong">{evento.titulo}</Text>
+            </View>
+          </Card>
+        ))}
+      </Section>
+
+      <Section title="Redes sociais">
+        <ListGroup>
+          {REDES.map((rede) => (
+            <ListRow
+              key={rede.nome}
+              icon={rede.icon}
+              title={rede.nome}
+              onPress={() => abrirLink(rede.url)}
+              trailing={<Icon name="external-link" size="md" color={colors.inkSubtle} />}
+            />
           ))}
-        </View>
-      </ScrollView>
-    </View>
+        </ListGroup>
+      </Section>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
-  containerHC: { backgroundColor: '#000' },
-
-  scroll: { alignItems: 'center', paddingBottom: 80 },
-
-  titulo: {
-    fontWeight: 'bold',
-    padding: 30,
-    textAlign: 'center',
-    color: 'black',
-  },
-  tituloHC: { color: '#FFD700' },
-
-  subtitulo: {
-    fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
-    color: 'black',
-  },
-
-  containerFeed: {
-    marginBottom: 30,
-    width: '90%',
-    borderRadius: 15,
-    backgroundColor: '#f2f2f2',
-    overflow: 'hidden',
-  },
-  containerFeedHC: {
-    backgroundColor: '#222',
-    borderWidth: 2,
-    borderColor: '#FFD700',
-  },
-
-  imgFeed: {
-    height: 200,
-    width: '100%',
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-  },
-
-  textoFeed: { padding: 12, fontSize: 18, color: 'black' },
-  textoFeedHC: { color: '#FFD700' },
-
-  redesContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: 15,
-  },
-
-  iconWrapper: {
-    margin: 15,
-    alignItems: 'center',
-  },
-
-  socialIcon: {
-    width: 50,
-    height: 50,
-    resizeMode: 'contain',
-  },
-
-  goldTint: {
-    tintColor: '#FFD700', // removido do inline
-  },
+  image: { width: '100%' },
 });
-

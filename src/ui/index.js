@@ -1,0 +1,22 @@
+// src/ui/index.js — design system do Sismorcego
+export { default as Text } from './Text';
+export { default as Icon } from './Icon';
+export { default as Button } from './Button';
+export { default as IconButton } from './IconButton';
+export { default as TextField } from './TextField';
+export { default as Select } from './Select';
+export { default as DateField, formatDate } from './DateField';
+export { default as SegmentedControl } from './SegmentedControl';
+export { default as FooterBar } from './FooterBar';
+export { default as BottomSheet } from './BottomSheet';
+export { default as Card } from './Card';
+export { default as Section } from './Section';
+export { default as Badge } from './Badge';
+export { default as SwitchRow } from './SwitchRow';
+export { default as AccordionItem } from './AccordionItem';
+export { default as Avatar } from './Avatar';
+export { default as EmptyState } from './EmptyState';
+export { default as ScreenHeader } from './ScreenHeader';
+export { ListGroup, ListRow } from './ListRow';
+export { Screen, ScrollScreen } from './Screen';
+export { ToastProvider, useToast } from './Toast';

@@ -1,10 +1,12 @@
 // App.js
 import React, { useEffect } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "./src/hooks/useAuth";
 import { AccessibilityProvider } from "./src/hooks/useAccessibility";
+import { ThemeProvider } from "./src/theme/ThemeProvider";
+import { ToastProvider } from "./src/ui";
 import RootNavigation from "./src/navigation";
 import { initDB } from "./src/database/db";
-import { SafeAreaProvider } from "react-native-safe-area-context"; // ✅
 
 export default function App() {
   useEffect(() => {
@@ -15,7 +17,11 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <AccessibilityProvider>
-          <RootNavigation />
+          <ThemeProvider>
+            <ToastProvider>
+              <RootNavigation />
+            </ToastProvider>
+          </ThemeProvider>
         </AccessibilityProvider>
       </AuthProvider>
     </SafeAreaProvider>

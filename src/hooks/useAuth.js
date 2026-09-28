@@ -1,7 +1,7 @@
 ﻿// src/hooks/useAuth.js
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-// DependÃªncias do Firebase (mantidas para quando o modo de teste for desativado)
+// Dependências do Firebase (mantidas para quando o modo de teste for desativado)
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -17,10 +17,10 @@ import { auth } from "../services/firebase";
 import logger from "../utils/logger";
 
 /**
- * ðŸ”§ MODO DE TESTE (sem login, cadastro e recuperaÃ§Ã£o)
- * - Quando TRUE, ignora qualquer integraÃ§Ã£o real com Firebase Auth
- * - Retorna { user: null, loading: false } e mantÃ©m a API do contexto disponÃ­vel
- * - Para reativar autenticaÃ§Ã£o real depois, basta mudar para false
+ * 🔧 MODO DE TESTE (sem login, cadastro e recuperação)
+ * - Quando TRUE, ignora qualquer integração real com Firebase Auth
+ * - Retorna { user: null, loading: false } e mantém a API do contexto disponível
+ * - Para reativar autenticação real depois, basta mudar para false
  */
 const AUTH_TEST_MODE = false;
 
@@ -35,18 +35,18 @@ const AuthContext = createContext({
 });
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);      // usuÃ¡rio atual (ou null)
+  const [user, setUser] = useState(null);      // usuário atual (ou null)
   const [loading, setLoading] = useState(true); // estado de carregamento inicial
 
   useEffect(() => {
-    // Se estamos em modo de teste, nÃ£o conectar no Firebase
+    // Se estamos em modo de teste, não conectar no Firebase
     if (AUTH_TEST_MODE) {
       setUser(null);
       setLoading(false);
       return;
     }
 
-    // Se por algum motivo 'auth' nÃ£o estiver configurado, nÃ£o quebra a aplicaÃ§Ã£o
+    // Se por algum motivo 'auth' não estiver configurado, não quebra a aplicação
     if (!auth) {
       logger.warn("useAuth: Firebase auth nao configurado");
       setUser(null);
@@ -54,10 +54,10 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    // Modo normal (autenticaÃ§Ã£o real)
+    // Modo normal (autenticação real)
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // âœ… Login persistente funciona para todos os usuÃ¡rios, 
-      // independente da verificaÃ§Ã£o de email
+      // ✅ Login persistente funciona para todos os usuários, 
+      // independente da verificação de email
       setUser(currentUser || null);
       setLoading(false);
     });
@@ -66,20 +66,20 @@ export const AuthProvider = ({ children }) => {
       try {
         unsubscribe && unsubscribe();
       } catch {
-        // evita crash se unsubscribe for invÃ¡lido
+        // evita crash se unsubscribe for inválido
       }
     };
   }, []);
 
-  // Helpers para evitar repetiÃ§Ã£o
+  // Helpers para evitar repetição
   const ensureAuthEnabled = () => {
     if (AUTH_TEST_MODE) {
-      const err = new Error("AutenticaÃ§Ã£o desativada para testes.");
+      const err = new Error("Autenticação desativada para testes.");
       err.code = "auth/test-mode-disabled";
       throw err;
     }
     if (!auth) {
-      const err = new Error("Firebase Auth nÃ£o configurado.");
+      const err = new Error("Firebase Auth não configurado.");
       err.code = "auth/not-configured";
       throw err;
     }
@@ -114,7 +114,7 @@ export const AuthProvider = ({ children }) => {
   // Atualizar perfil (nome, email, senha, foto)
   const updateUser = async ({ nome, email, senha, foto }) => {
     ensureAuthEnabled();
-    if (!auth.currentUser) throw new Error("Nenhum usuÃ¡rio logado.");
+    if (!auth.currentUser) throw new Error("Nenhum usuário logado.");
 
     try {
       if (nome || foto) {
@@ -129,7 +129,7 @@ export const AuthProvider = ({ children }) => {
           await updateEmail(auth.currentUser, email);
         } catch (err) {
           if (err.code === "auth/requires-recent-login") {
-            throw new Error("âš ï¸ RefaÃ§a login antes de alterar o email.");
+            throw new Error("⚠️ Refaça login antes de alterar o email.");
           }
           throw err;
         }
@@ -140,13 +140,13 @@ export const AuthProvider = ({ children }) => {
           await updatePassword(auth.currentUser, senha);
         } catch (err) {
           if (err.code === "auth/requires-recent-login") {
-            throw new Error("âš ï¸ RefaÃ§a login antes de alterar a senha.");
+            throw new Error("⚠️ Refaça login antes de alterar a senha.");
           }
           throw err;
         }
       }
 
-      // Atualiza estado local com o usuÃ¡rio atualizado
+      // Atualiza estado local com o usuário atualizado
       setUser({ ...auth.currentUser });
     } catch (error) {
       logger.error("useAuth: updateUser failed", error);
@@ -154,24 +154,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Quando em modo de teste, garantimos loading=false desde o inÃ­cio
+  // Quando em modo de teste, garantimos loading=false desde o início
   const contextValue = AUTH_TEST_MODE
     ? {
         user: null,
         loading: false,
-        // MantÃ©m a API para nÃ£o quebrar telas que importam as funÃ§Ãµes:
+        // Mantém a API para não quebrar telas que importam as funções:
         signIn: async () => {
-          const err = new Error("AutenticaÃ§Ã£o desativada para testes.");
+          const err = new Error("Autenticação desativada para testes.");
           err.code = "auth/test-mode-disabled";
           throw err;
         },
         signUp: async () => {
-          const err = new Error("AutenticaÃ§Ã£o desativada para testes.");
+          const err = new Error("Autenticação desativada para testes.");
           err.code = "auth/test-mode-disabled";
           throw err;
         },
         resetPassword: async () => {
-          const err = new Error("AutenticaÃ§Ã£o desativada para testes.");
+          const err = new Error("Autenticação desativada para testes.");
           err.code = "auth/test-mode-disabled";
           throw err;
         },
@@ -179,7 +179,7 @@ export const AuthProvider = ({ children }) => {
           // no-op em modo teste
         },
         updateUser: async () => {
-          const err = new Error("AutenticaÃ§Ã£o desativada para testes.");
+          const err = new Error("Autenticação desativada para testes.");
           err.code = "auth/test-mode-disabled";
           throw err;
         },

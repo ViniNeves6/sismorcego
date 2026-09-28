@@ -128,3 +128,9 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Fonte de ícones vetoriais (somente Feather, para não inflar o APK)
+project.ext.vectoricons = [
+    iconFontNames: ['Feather.ttf']
+]
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")

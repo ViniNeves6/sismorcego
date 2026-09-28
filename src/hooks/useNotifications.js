@@ -1,25 +1,15 @@
 // src/hooks/useNotifications.js
 import { useState } from 'react';
-import { Alert } from 'react-native';
 
+// Preferência de notificações (estado local por enquanto).
+// A tela mostra o feedback; aqui só guardamos o valor.
 export default function useNotifications() {
   const [enabled, setEnabled] = useState(true);
 
-  const toggleNotifications = () => {
-    setEnabled((prev) => {
-      const newState = !prev;
+  const toggleNotifications = (next) => {
+    setEnabled((prev) => (typeof next === 'boolean' ? next : !prev));
 
-      // Mostra feedback no app
-      if (newState) {
-        Alert.alert('Notificações', 'As notificações foram ativadas ✅');
-      } else {
-        Alert.alert('Notificações', 'As notificações foram desativadas ❌');
-      }
-
-      return newState;
-    });
-
-    // 🔹 integração futura com Firebase/OneSignal:
+    // integração futura com Firebase/OneSignal:
     // if (enabled) messaging().unsubscribeFromTopic('all');
     // else messaging().subscribeToTopic('all');
   };
