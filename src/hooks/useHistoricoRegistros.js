@@ -3,10 +3,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DeviceEventEmitter } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { carregarHistorico } from "../services/historico";
+import useAuth from "./useAuth";
 
 // Recarrega ao focar a tela e no evento 'registros:changed'.
 // `loading` só vale para a primeira carga: recargas seguintes são silenciosas.
 export default function useHistoricoRegistros() {
+  const { role } = useAuth();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -14,12 +16,12 @@ export default function useHistoricoRegistros() {
 
   const reload = useCallback(async () => {
     const id = ++latest.current;
-    const data = await carregarHistorico();
+    const data = await carregarHistorico(role);
     // Ignora respostas antigas se outra recarga começou depois.
     if (id !== latest.current) return;
     setRegistros(data);
     setLoading(false);
-  }, []);
+  }, [role]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);

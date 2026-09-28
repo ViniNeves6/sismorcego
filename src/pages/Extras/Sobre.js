@@ -6,16 +6,14 @@ import { useTheme } from '../../theme/ThemeProvider';
 import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 import logger from '../../utils/logger';
 
+// Proporção padrão pra todo card de evento (recorta com resizeMode="cover"),
+// assim a altura fica sempre consistente independente da imagem de origem.
+const EVENTO_ASPECT_RATIO = 16 / 9;
+
 const EVENTOS = [
-  {
-    titulo: 'I Seminário interno: Análise de risco da raiva na Amazônia',
-    imagem: require('../../assets/images/programacao.png'),
-    aspectRatio: 16 / 9,
-  },
   {
     titulo: 'DRA - Curuçá 2024',
     imagem: require('../../assets/images/DRA.png'),
-    aspectRatio: 3 / 2,
   },
 ];
 
@@ -54,7 +52,7 @@ export default function Sobre({ navigation }) {
                 accessibilityLabel={evento.titulo}
                 style={[
                   styles.image,
-                  { aspectRatio: evento.aspectRatio, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
+                  { aspectRatio: EVENTO_ASPECT_RATIO, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
                 ]}
               />
               <Text variant="bodyStrong">{evento.titulo}</Text>

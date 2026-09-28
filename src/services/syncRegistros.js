@@ -18,21 +18,17 @@ let syncing = false;
       recordId: String(registro.recordId),
       uid: uid,
 
-      // Dados essenciais do registro
-      nomeAcs: registro.nomeAcs ?? null,
-      nomeAgredido: registro.nomeAgredido ?? null,
-      apelido: registro.apelido ?? null,
-      idade: typeof registro.idade === "number" ? registro.idade : null,
-      sexo: registro.sexo ?? null,
-      tratamentoAntirrabico: registro.tratamentoAntirrabico ?? null,
+      // Tipo de vítima + dados comuns (ver docs/superpowers/specs/2026-09-28-registro-por-tipo-vitima-design.md)
+      tipoVitima: registro.tipoVitima ?? null,
+      notificadorTipo: registro.notificadorTipo ?? null,
+      nomeAcs: registro.nomeNotificador ?? registro.nomeAcs ?? null,
       dataRegistro: registro.dataRegistro ?? null,
-      dataAgressao: registro.dataAgressao ?? null,
+      dataAgressao: registro.dataMordedura ?? registro.dataAgressao ?? null,
       municipio: registro.municipio ?? null,
-      animalAgredido: registro.animalAgredido ?? null,
-      circunstancia: registro.circunstancia ?? null,
-      possivelAbrigo: registro.possivelAbrigo ?? null,
-      abrigoOpcao: registro.abrigoOpcao ?? null,
-      abrigoOutro: registro.abrigoOutro ?? null,
+      localidade: registro.localidade ?? null,
+
+      // Dados específicos do tipo de vítima
+      detalhes: registro.detalhes ?? null,
 
       // Localização (somente o necessário)
       location: registro.location

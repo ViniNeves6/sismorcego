@@ -7,6 +7,7 @@ import Configuracoes from '../pages/Extras/Configuracoes';
 import Sobre from '../pages/Extras/Sobre';
 import Duvidas from '../pages/Extras/Duvidas';
 import Creditos from '../pages/Extras/Creditos';
+import Informativos from '../pages/Extras/Informativos';
 import { useTheme } from '../theme/ThemeProvider';
 
 const Stack = createNativeStackNavigator();
@@ -26,6 +27,7 @@ export default function MoreStack() {
       <Stack.Screen name="Configuracoes" component={Configuracoes} />
       <Stack.Screen name="Duvidas" component={Duvidas} />
       <Stack.Screen name="Sobre" component={Sobre} />
+      <Stack.Screen name="Informativos" component={Informativos} />
       <Stack.Screen name="Creditos" component={Creditos} />
     </Stack.Navigator>
   );

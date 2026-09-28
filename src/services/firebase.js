@@ -21,13 +21,13 @@ import logger from '../utils/logger';
 // Configuração do Firebase
 // =====================
 const firebaseConfig = {
-  apiKey: "AIzaSyAvCZyQSpM8bQldkYTD_XpUwCte-sjWt0g",
-  authDomain: "sismorcego-d3603.firebaseapp.com",
-  projectId: "sismorcego-d3603",
-  storageBucket: "sismorcego-d3603.appspot.com",
-  messagingSenderId: "742942011918",
-  appId: "1:742942011918:web:33f9e5c293706ca607825f",
-  measurementId: "G-V8NVMD4381",
+  apiKey: "AIzaSyBPZUnFdq82vSa0WCrbqMRXSpzkyRPQxdM",
+  authDomain: "sismorcego-50b25.firebaseapp.com",
+  projectId: "sismorcego-50b25",
+  storageBucket: "sismorcego-50b25.firebasestorage.app",
+  messagingSenderId: "698315766055",
+  appId: "1:698315766055:web:4015ec00aae11bfbfe1102",
+  measurementId: "G-28DFXY0X41",
 };
 
 // Valida se as chaves mínimas existem (evita crash em ambientes sem .env)

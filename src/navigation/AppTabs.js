@@ -4,12 +4,16 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import NovoRegistro from '../pages/Main/NovoRegistro';
+import RegistrarStack from './RegistrarStack';
 import Buscar from '../pages/Main/Buscar';
+import Notificacoes from '../pages/Main/Notificacoes';
+import Painel from '../pages/Main/Painel';
 import Conta from '../pages/Extras/Conta';
 import MoreStack from './MoreStack';
 import { Icon } from '../ui';
 import { useTheme } from '../theme/ThemeProvider';
+import useAuth from '../hooks/useAuth';
+import useCoordenadorNotifications from '../hooks/useCoordenadorNotifications';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,6 +22,9 @@ const tabIcon = (name) => ({ color }) => <Icon name={name} size={24} color={colo
 export default function AppTabs() {
   const { colors, type } = useTheme();
   const insets = useSafeAreaInsets();
+  const { role } = useAuth();
+  const { naoLidas } = useCoordenadorNotifications();
+  const isCoordenador = role === 'coordenador';
 
   return (
     <Tab.Navigator
@@ -41,8 +48,22 @@ export default function AppTabs() {
         sceneStyle: { backgroundColor: colors.canvas },
       }}
     >
-      <Tab.Screen name="Registrar" component={NovoRegistro} options={{ tabBarIcon: tabIcon('plus-circle') }} />
+      <Tab.Screen name="Registrar" component={RegistrarStack} options={{ tabBarIcon: tabIcon('plus-circle') }} />
       <Tab.Screen name="Buscar" component={Buscar} options={{ tabBarIcon: tabIcon('search') }} />
+      {isCoordenador ? (
+        <Tab.Screen
+          name="Notificacoes"
+          component={Notificacoes}
+          options={{
+            title: 'Notificações',
+            tabBarIcon: tabIcon('bell'),
+            tabBarBadge: naoLidas > 0 ? naoLidas : undefined,
+          }}
+        />
+      ) : null}
+      {isCoordenador ? (
+        <Tab.Screen name="Painel" component={Painel} options={{ tabBarIcon: tabIcon('bar-chart-2') }} />
+      ) : null}
       <Tab.Screen name="Conta" component={Conta} options={{ tabBarIcon: tabIcon('user') }} />
       <Tab.Screen name="Mais" component={MoreStack} options={{ tabBarIcon: tabIcon('menu') }} />
     </Tab.Navigator>

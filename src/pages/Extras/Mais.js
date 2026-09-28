@@ -57,6 +57,7 @@ export default function Mais({ navigation }) {
         />
         <ListRow icon="help-circle" title="Dúvidas" onPress={() => navigation.navigate('Duvidas')} />
         <ListRow icon="info" title="Sobre o projeto" onPress={() => navigation.navigate('Sobre')} />
+        <ListRow icon="book-open" title="Informativos" subtitle="Material educativo sobre morcegos e raiva" onPress={() => navigation.navigate('Informativos')} />
         <ListRow icon="users" title="Créditos" onPress={() => navigation.navigate('Creditos')} />
       </ListGroup>
 

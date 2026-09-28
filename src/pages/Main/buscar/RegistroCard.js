@@ -15,30 +15,57 @@ const STATUS = {
 
 export const statusOf = (registro) => STATUS[registro?.status] || STATUS.pending;
 
-function RegistroCard({ registro, onOpen }) {
+// Resumo curto do "quem/o quê" foi mordido, por tipo de vítima.
+// Registros antigos (sem tipoVitima) mostram o nome direto, como sempre foi.
+const resumoVitima = (registro) => {
+  const tipo = registro.tipoVitima;
+  const d = registro.detalhes || {};
+
+  if (!tipo) return registro.nomeAgredido || "Vítima não identificada";
+  if (tipo === "humano") return d.nomeAgredido || "Vítima não identificada";
+  if (tipo === "caninoFelino") return d.especie === "felina" ? "Felino" : "Canino";
+  if (tipo === "aves") return "Ave";
+  if (tipo === "producao") return "Animal de produção";
+  return "Registro";
+};
+
+function RegistroCard({ registro, onOpen, isAdmin }) {
   const { spacing, colors } = useTheme();
   const status = statusOf(registro);
   const municipio = registro.municipio || "Sem município";
-  const dataAgressao = formatarDataCurta(registro.dataAgressao || registro.dataRegistro);
+  const dataAgressao = formatarDataCurta(registro.dataAgressao || registro.dataMordedura || registro.dataRegistro);
   const hasPhoto = Boolean(registro.photoUriLocal || registro.photoBase64);
   const origem = registro._origin === "cloud" ? "Na nuvem" : "Só no aparelho";
+  const nomeAcs = isAdmin ? registro.nomeAcs || "ACS não identificado" : null;
+  const vitima = resumoVitima(registro);
 
   return (
     <Card
       onPress={() => onOpen(registro)}
-      accessibilityLabel={`Registro em ${municipio}, ${dataAgressao}. ${status.label}. Abrir opções de PDF`}
+      accessibilityLabel={`${vitima}, em ${municipio}, ${dataAgressao}${nomeAcs ? `, de ${nomeAcs}` : ""}. ${status.label}. Abrir opções de PDF`}
     >
       <View style={{ gap: spacing.sm }}>
         <View style={styles.top}>
-          <Text variant="heading" numberOfLines={1} style={styles.title}>
-            {municipio}
-          </Text>
+          <View style={styles.title}>
+            <Text variant="heading" numberOfLines={1}>
+              {vitima}
+            </Text>
+            <Text variant="caption" tone="muted" numberOfLines={1}>
+              {municipio}
+            </Text>
+          </View>
           <Icon name="file-text" size="md" color={colors.inkSubtle} />
         </View>
 
         <Text variant="caption" tone="muted">
           Agressão em {dataAgressao} · {origem}
         </Text>
+
+        {nomeAcs ? (
+          <Text variant="caption" tone="muted">
+            ACS: {nomeAcs}
+          </Text>
+        ) : null}
 
         <View style={[styles.badges, { gap: spacing.sm }]}>
           <Badge label={status.label} tone={status.tone} icon={status.icon} />

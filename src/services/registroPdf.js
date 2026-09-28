@@ -5,6 +5,21 @@
 import { Platform, Share } from "react-native";
 import RNFS from "react-native-fs";
 import logger from "../utils/logger";
+import {
+  CIRCUNSTANCIA_HUMANO,
+  MOTIVO_NAO_BUSCOU,
+  TIPO_ABRIGO_MORCEGO,
+  ESPECIE_CANINO_FELINO,
+  CIRCUNSTANCIA_CANINO_FELINO,
+  MOTIVO_NAO_PARTICIPOU_CANINO_FELINO,
+  ESPECIE_AVES,
+  CIRCUNSTANCIA_AVES,
+  ESPECIE_PRODUCAO,
+  CIRCUNSTANCIA_PRODUCAO,
+  PARTICIPOU_VACINACAO_PRODUCAO,
+  MOTIVO_NAO_AVISOU,
+  rotulo,
+} from "../pages/Main/registro/registroTypeOptions";
 
 // ======= Dependências opcionais =======
 let RNHTMLtoPDF;
@@ -197,6 +212,118 @@ async function resolveImage(registro) {
   return null;
 }
 
+/* ======================= Campos da ficha, por tipo de vítima ======================= */
+// Registros antigos (sem tipoVitima) usam o formato legado direto; registros
+// novos ficam em registro.detalhes, conforme o tipo escolhido no cadastro.
+// Ver docs/superpowers/specs/2026-09-28-registro-por-tipo-vitima-design.md
+function buildCamposFicha(registro, { includeNames, includeLocation }) {
+  const nomeNotificadorTxt = includeNames ? (registro?.nomeAcs ?? "-") : "[oculto]";
+  const municipioTxt = registro?.municipio ?? "-";
+  const localidadeTxt = registro?.localidade ?? "-";
+  const dataRegistroStr = formatarDataCurta(registro?.dataRegistro);
+  const dataMordeduraStr = formatarDataCurta(registro?.dataAgressao);
+  const latTxt = includeLocation
+    ? String(registro?.location?.latitude ?? registro?.latitude ?? "-")
+    : "[oculto]";
+  const lngTxt = includeLocation
+    ? String(registro?.location?.longitude ?? registro?.longitude ?? "-")
+    : "[oculto]";
+
+  const campos = [
+    { label: "Nome do notificador", value: nomeNotificadorTxt },
+    { label: "Data do registro", value: dataRegistroStr },
+    { label: "Data da mordedura", value: dataMordeduraStr },
+    { label: "Município", value: municipioTxt },
+  ];
+  if (registro?.localidade) campos.push({ label: "Localidade/comunidade", value: localidadeTxt });
+
+  const tipo = registro?.tipoVitima;
+  const d = registro?.detalhes || {};
+
+  if (!tipo) {
+    // Legado: campos antigos, exibidos como estão (sem tentar reclassificar).
+    campos.push(
+      { label: "Nome do agredido", value: includeNames ? (registro?.nomeAgredido ?? "-") : "[oculto]" },
+      { label: "Apelido", value: registro?.apelido ?? "-" },
+      { label: "Idade", value: registro?.idade ?? "-" },
+      { label: "Sexo", value: formatarSexo(registro?.sexo) },
+      { label: "Tratamento antirrábico", value: formatarTratamento(registro?.tratamentoAntirrabico) },
+      { label: "Animal agredido", value: formatarLista(registro?.animalAgredido) },
+      { label: "Circunstância", value: formatarLista(registro?.circunstancia) },
+      { label: "Possível abrigo?", value: formatarBool(registro?.possivelAbrigo) },
+      { label: "Tipo de abrigo", value: registro?.abrigoOpcao ?? "-" },
+      { label: "Outro abrigo", value: registro?.abrigoOutro ?? "-" }
+    );
+  } else if (tipo === "humano") {
+    campos.push(
+      { label: "Nome do agredido", value: includeNames ? (d.nomeAgredido ?? "-") : "[oculto]" },
+      { label: "Apelido", value: d.apelido ?? "-" },
+      { label: "Idade", value: d.idade ?? "-" },
+      { label: "Sexo", value: formatarSexo(d.sexo) },
+      { label: "Ocupação/profissão", value: d.ocupacaoProfissao ?? "-" },
+      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_HUMANO, d.circunstancia) }
+    );
+    if (d.circunstancia === "praia") campos.push({ label: "Qual praia?", value: d.circunstanciaPraiaQual ?? "-" });
+    campos.push({ label: "Buscou atendimento?", value: formatarBool(d.buscouAtendimento) });
+    if (d.buscouAtendimento === "nao") {
+      campos.push({ label: "Motivo de não buscar atendimento", value: rotulo(MOTIVO_NAO_BUSCOU, d.naoBuscouMotivo) });
+    }
+    campos.push({ label: "Abrigo de morcego?", value: formatarBool(d.abrigoMorcego) });
+    if (d.abrigoMorcego === "sim") {
+      campos.push(
+        { label: "Tipo de abrigo", value: rotulo(TIPO_ABRIGO_MORCEGO, d.abrigoTipo) },
+        { label: "Descrição do abrigo", value: d.abrigoDescricao ?? "-" }
+      );
+    }
+  } else if (tipo === "caninoFelino") {
+    campos.push(
+      { label: "Espécie", value: rotulo(ESPECIE_CANINO_FELINO, d.especie) },
+      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_CANINO_FELINO, d.circunstancia) },
+      { label: "Participou da última campanha de vacinação?", value: formatarBool(d.participouVacinacao) }
+    );
+    if (d.participouVacinacao === "nao") {
+      campos.push({
+        label: "Motivo",
+        value:
+          d.naoParticipouMotivo === "nao_sabe"
+            ? rotulo(MOTIVO_NAO_PARTICIPOU_CANINO_FELINO, "nao_sabe")
+            : d.naoParticipouDescricao ?? "-",
+      });
+    }
+    campos.push({ label: "Avisou o município?", value: formatarBool(d.avisouMunicipio) });
+    if (d.avisouMunicipio === "nao") {
+      campos.push({ label: "Motivo de não avisar", value: rotulo(MOTIVO_NAO_AVISOU, d.naoAvisouMotivo) });
+      if (d.naoAvisouMotivo === "outro") campos.push({ label: "Descrição", value: d.naoAvisouDescricao ?? "-" });
+    }
+  } else if (tipo === "aves") {
+    campos.push(
+      { label: "Espécie", value: rotulo(ESPECIE_AVES, d.especie) },
+      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_AVES, d.circunstancia) }
+    );
+    if (d.circunstancia === "outro") campos.push({ label: "Descrição da circunstância", value: d.circunstanciaDescricao ?? "-" });
+    campos.push({ label: "Avisou a ADEPARÁ ou o município?", value: formatarBool(d.avisouAdeparaOuMunicipio) });
+    if (d.avisouAdeparaOuMunicipio === "nao") {
+      campos.push({ label: "Motivo de não avisar", value: rotulo(MOTIVO_NAO_AVISOU, d.naoAvisouMotivo) });
+      if (d.naoAvisouMotivo === "outro") campos.push({ label: "Descrição", value: d.naoAvisouDescricao ?? "-" });
+    }
+  } else if (tipo === "producao") {
+    campos.push(
+      { label: "Espécie", value: rotulo(ESPECIE_PRODUCAO, d.especie) },
+      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_PRODUCAO, d.circunstancia) },
+      { label: "Participou da última campanha de vacinação?", value: rotulo(PARTICIPOU_VACINACAO_PRODUCAO, d.participouVacinacao) }
+    );
+    if (d.participouVacinacao === "nao") campos.push({ label: "Motivo", value: d.naoParticipouDescricao ?? "-" });
+    campos.push({ label: "Avisou a ADEPARÁ ou o município?", value: formatarBool(d.avisouAdeparaOuMunicipio) });
+    if (d.avisouAdeparaOuMunicipio === "nao") {
+      campos.push({ label: "Motivo de não avisar", value: rotulo(MOTIVO_NAO_AVISOU, d.naoAvisouMotivo) });
+      if (d.naoAvisouMotivo === "outro") campos.push({ label: "Descrição", value: d.naoAvisouDescricao ?? "-" });
+    }
+  }
+
+  campos.push({ label: "Latitude", value: latTxt }, { label: "Longitude", value: lngTxt });
+  return campos;
+}
+
 /* ======================= API pública ======================= */
 
 /**
@@ -210,22 +337,7 @@ export async function generateRegistroPdf(registro, opts = {}) {
   const includeNames = opts.includeNames !== false;
   const includeLocation = opts.includeLocation !== false;
 
-  const dataRegistroStr = registro?.dataRegistro ? formatarDataCurta(registro.dataRegistro) : "-";
-  const dataAgressaoStr = registro?.dataAgressao ? formatarDataCurta(registro.dataAgressao) : "-";
-
-  const nomeAcsTxt = includeNames ? (registro?.nomeAcs ?? "-") : "[oculto]";
-  const nomeAgredidoTxt = includeNames ? (registro?.nomeAgredido ?? "-") : "[oculto]";
-
-  const latTxt = includeLocation
-    ? String(registro?.location?.latitude ?? registro?.latitude ?? registro?.lat ?? "-")
-    : "[oculto]";
-  const lngTxt = includeLocation
-    ? String(registro?.location?.longitude ?? registro?.longitude ?? registro?.lng ?? "-")
-    : "[oculto]";
-
-  const possivelAbrigoTxt = formatarBool(registro?.possivelAbrigo);
-  const abrigoOpcaoTxt = registro?.abrigoOpcao ?? "-";
-  const abrigoOutroTxt = registro?.abrigoOutro ?? "-";
+  const campos = buildCamposFicha(registro, { includeNames, includeLocation });
 
   const imagemBase64 = await resolveImage(registro);
   // Loga só o tamanho, nunca o conteúdo (evita crash e vazamento).
@@ -260,28 +372,7 @@ export async function generateRegistroPdf(registro, opts = {}) {
         ${imagemBase64 ? `<img src="${imagemBase64}" alt="Foto do registro" />` : '<p class="small">Sem foto</p>'}
 
         <table>
-          <tr><th>Nome do ACS</th><td>${escapeHtml(nomeAcsTxt)}</td></tr>
-          <tr><th>Data do Registro</th><td>${escapeHtml(dataRegistroStr)}</td></tr>
-
-          <tr><th>Nome do Agredido</th><td>${escapeHtml(nomeAgredidoTxt)}</td></tr>
-          <tr><th>Apelido</th><td>${escapeHtml(registro?.apelido ?? "-")}</td></tr>
-          <tr><th>Idade</th><td>${escapeHtml(registro?.idade ?? "-")}</td></tr>
-
-          <tr><th>Sexo</th><td>${escapeHtml(formatarSexo(registro?.sexo))}</td></tr>
-          <tr><th>Tratamento Antirrábico</th><td>${escapeHtml(formatarTratamento(registro?.tratamentoAntirrabico))}</td></tr>
-
-          <tr><th>Data da Agressão</th><td>${escapeHtml(dataAgressaoStr)}</td></tr>
-          <tr><th>Município</th><td>${escapeHtml(registro?.municipio ?? "-")}</td></tr>
-
-          <tr><th>Animal Agredido</th><td>${escapeHtml(formatarLista(registro?.animalAgredido))}</td></tr>
-          <tr><th>Circunstância</th><td>${escapeHtml(formatarLista(registro?.circunstancia))}</td></tr>
-
-          <tr><th>Possível Abrigo?</th><td>${escapeHtml(possivelAbrigoTxt)}</td></tr>
-          <tr><th>Tipo de Abrigo</th><td>${escapeHtml(abrigoOpcaoTxt)}</td></tr>
-          <tr><th>Outro Abrigo</th><td>${escapeHtml(abrigoOutroTxt)}</td></tr>
-
-          <tr><th>Latitude</th><td>${escapeHtml(latTxt)}</td></tr>
-          <tr><th>Longitude</th><td>${escapeHtml(lngTxt)}</td></tr>
+          ${campos.map((c) => `<tr><th>${escapeHtml(c.label)}</th><td>${escapeHtml(c.value)}</td></tr>`).join("\n")}
         </table>
       </body>
     </html>
@@ -310,26 +401,7 @@ export async function generateRegistroPdf(registro, opts = {}) {
   }
 
   // 2) Fallback pdf-lib
-  const linhas = [
-    `Origem: ${origem}`,
-    `Record ID: ${recordId}`,
-    `Nome do ACS: ${nomeAcsTxt}`,
-    `Data do Registro: ${dataRegistroStr}`,
-    `Nome do Agredido: ${nomeAgredidoTxt}`,
-    `Apelido: ${registro?.apelido ?? "-"}`,
-    `Idade: ${registro?.idade ?? "-"}`,
-    `Sexo: ${formatarSexo(registro?.sexo)}`,
-    `Tratamento Antirrábico: ${formatarTratamento(registro?.tratamentoAntirrabico)}`,
-    `Data da Agressão: ${dataAgressaoStr}`,
-    `Município: ${registro?.municipio ?? "-"}`,
-    `Animal Agredido: ${formatarLista(registro?.animalAgredido)}`,
-    `Circunstância: ${formatarLista(registro?.circunstancia)}`,
-    `Possível Abrigo?: ${possivelAbrigoTxt}`,
-    `Tipo de Abrigo: ${abrigoOpcaoTxt}`,
-    `Outro Abrigo: ${abrigoOutroTxt}`,
-    `Latitude: ${latTxt}`,
-    `Longitude: ${lngTxt}`,
-  ];
+  const linhas = [`Origem: ${origem}`, `Record ID: ${recordId}`, ...campos.map((c) => `${c.label}: ${c.value}`)];
 
   const pdfBytes = await buildPdfWithPdfLib({ titulo: "Ficha Cadastral", linhas, imageBase64: imagemBase64 });
 

@@ -12,9 +12,20 @@ import {
   updateEmail,
   updatePassword,
 } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
-import { auth } from "../services/firebase";
+import { auth, db } from "../services/firebase";
 import logger from "../utils/logger";
+
+// Busca o papel do usuário (usuarios/{uid}.role); cria o doc como "acs" se não existir.
+const ensureUserRole = async (uid, email) => {
+  if (!db || !uid) return "acs";
+  const ref = doc(db, "usuarios", uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) return snap.data()?.role || "acs";
+  await setDoc(ref, { email: email || null, role: "acs" }, { merge: true });
+  return "acs";
+};
 
 /**
  * 🔧 MODO DE TESTE (sem login, cadastro e recuperação)
@@ -26,6 +37,7 @@ const AUTH_TEST_MODE = false;
 
 const AuthContext = createContext({
   user: null,
+  role: null,
   loading: false,
   signIn: async () => {},
   signUp: async () => {},
@@ -36,6 +48,7 @@ const AuthContext = createContext({
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);      // usuário atual (ou null)
+  const [role, setRole] = useState(null);       // "acs" | "coordenador" | null
   const [loading, setLoading] = useState(true); // estado de carregamento inicial
 
   useEffect(() => {
@@ -55,10 +68,20 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Modo normal (autenticação real)
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // ✅ Login persistente funciona para todos os usuários, 
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      // ✅ Login persistente funciona para todos os usuários,
       // independente da verificação de email
       setUser(currentUser || null);
+      if (currentUser) {
+        try {
+          setRole(await ensureUserRole(currentUser.uid, currentUser.email));
+        } catch (e) {
+          logger.warn("useAuth: falha ao carregar papel do usuário", e);
+          setRole("acs");
+        }
+      } else {
+        setRole(null);
+      }
       setLoading(false);
     });
 
@@ -86,9 +109,20 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Login
-  const signIn = async (email, password) => {
+  const signIn = async (email, password, { requireAdmin = false } = {}) => {
     ensureAuthEnabled();
     const cred = await signInWithEmailAndPassword(auth, email, password);
+
+    if (requireAdmin) {
+      const userRole = await ensureUserRole(cred.user.uid, cred.user.email);
+      if (userRole !== "coordenador") {
+        await firebaseSignOut(auth);
+        const err = new Error("Essa conta não tem acesso de administrador.");
+        err.code = "auth/not-admin";
+        throw err;
+      }
+    }
+
     // Retorna o user para telas que verificam emailVerified
     return cred.user;
   };
@@ -96,7 +130,8 @@ export const AuthProvider = ({ children }) => {
   // Cadastro
   const signUp = async (email, password) => {
     ensureAuthEnabled();
-    await createUserWithEmailAndPassword(auth, email, password);
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await ensureUserRole(cred.user.uid, cred.user.email);
   };
 
   // Reset de senha
@@ -184,7 +219,7 @@ export const AuthProvider = ({ children }) => {
           throw err;
         },
       }
-    : { user, loading, signIn, signUp, resetPassword, signOut, updateUser };
+    : { user, role, loading, signIn, signUp, resetPassword, signOut, updateUser };
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };

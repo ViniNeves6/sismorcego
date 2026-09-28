@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Coordenador: usuarios/{uid}.role == "coordenador"
+    function isCoordenador() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == "coordenador";
+    }
+
+    // Perfil do usuário (papel: "acs" | "coordenador").
+    // Cadastro sempre cria como "acs"; ninguém troca o próprio papel pelo app.
+    match /usuarios/{uid} {
+      allow read: if isOwner(uid) || isCoordenador();
+      allow create: if isOwner(uid) && request.resource.data.role == "acs";
+      allow update: if isOwner(uid) && request.resource.data.role == resource.data.role;
+    }
+
+    // Registros: cada ACS só escreve/lê os próprios; coordenador lê os de todos.
+    match /registros/{uid}/itens/{recordId} {
+      allow read: if isOwner(uid) || isCoordenador();
+      allow write: if isOwner(uid);
+    }
+
+    // Feed de notificações do coordenador (gerado pelo próprio aparelho dele).
+    match /usuarios/{uid}/notificacoes/{notifId} {
+      allow read, write: if isOwner(uid);
+    }
+  }
+}

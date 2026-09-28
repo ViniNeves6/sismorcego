@@ -2,7 +2,7 @@
 // Carrega o histórico de registros: fila local (SQLite) + nuvem (Firestore).
 // Regra de mescla: a versão da nuvem vence a local (por recordId).
 import NetInfo from "@react-native-community/netinfo";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { loadQueue } from "./offlineQueue";
 import { db, auth } from "./firebase";
 import logger from "../utils/logger";
@@ -72,8 +72,40 @@ export async function carregarNuvem() {
   }
 }
 
+// Coordenador: todos os registros de todos os ACS (collectionGroup atravessa
+// a subcoleção "itens" de qualquer uid). Exige regra do Firestore liberando
+// a leitura para quem tiver usuarios/{uid}.role == "coordenador".
+export async function carregarNuvemTodos() {
+  try {
+    const user = auth?.currentUser;
+    if (!user || !db) return [];
+
+    const net = await NetInfo.fetch();
+    const isOnline = !!(net.isConnected && net.isInternetReachable !== false);
+    if (!isOnline) return [];
+
+    const col = collectionGroup(db, "itens");
+    const q = query(col, orderBy("updatedAt", "desc"), limit(500));
+    const snap = await getDocs(q);
+
+    const cloud = [];
+    snap.forEach((docSnap) => {
+      cloud.push({ id: docSnap.id, ...docSnap.data(), _origin: "cloud" });
+    });
+    return cloud;
+  } catch (e) {
+    logger.error("Erro ao carregar nuvem (todos):", e);
+    return [];
+  }
+}
+
 // Local e nuvem são independentes: carrega em paralelo.
-export async function carregarHistorico() {
+// Coordenador vê os registros de todos (sem fila local, que é só do aparelho dele).
+export async function carregarHistorico(role) {
+  if (role === "coordenador") {
+    const cloud = await carregarNuvemTodos();
+    return mergeByRecordId(cloud, []);
+  }
   const [local, cloud] = await Promise.all([carregarLocais(), carregarNuvem()]);
   return mergeByRecordId(cloud, local);
 }

@@ -12,6 +12,7 @@ import {
   useToast,
 } from "../../ui";
 import { useTheme } from "../../theme/ThemeProvider";
+import useAuth from "../../hooks/useAuth";
 import useHistoricoRegistros from "../../hooks/useHistoricoRegistros";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
 import { generateRegistroPdf, savePdf } from "../../services/registroPdf";
@@ -33,14 +34,21 @@ const normalize = (v) =>
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
 
+// Legado (sem tipoVitima) tem nomeAgredido/apelido no topo; registros novos
+// guardam isso em detalhes.* (só existe pro tipo "humano").
 const SEARCHABLE = ["municipio", "nomeAgredido", "apelido", "nomeAcs"];
+const SEARCHABLE_DETALHES = ["nomeAgredido", "apelido"];
 
 const keyExtractor = (r) => r.id;
 
 export default function Buscar({ navigation }) {
   const { spacing } = useTheme();
   const toast = useToast();
-  useSpeakOnMount("Tela de histórico. Registros locais e da nuvem.");
+  const { role } = useAuth();
+  const isAdmin = role === "coordenador";
+  useSpeakOnMount(
+    isAdmin ? "Tela de histórico. Registros de todos os ACS." : "Tela de histórico. Registros locais e da nuvem."
+  );
 
   const { registros, loading, refreshing, refresh } = useHistoricoRegistros();
 
@@ -60,7 +68,8 @@ export default function Buscar({ navigation }) {
       if (filter === "pendentes" && enviado) return false;
       if (filter === "enviados" && !enviado) return false;
       if (!q) return true;
-      return SEARCHABLE.some((k) => normalize(r[k]).includes(q));
+      if (SEARCHABLE.some((k) => normalize(r[k]).includes(q))) return true;
+      return SEARCHABLE_DETALHES.some((k) => normalize(r.detalhes?.[k]).includes(q));
     });
   }, [registros, deferredQuery, filter]);
 
@@ -98,7 +107,10 @@ export default function Buscar({ navigation }) {
     toast.show("Falha ao abrir o PDF.", { tone: "danger" });
   };
 
-  const renderItem = useCallback(({ item }) => <RegistroCard registro={item} onOpen={abrirOpcoes} />, [abrirOpcoes]);
+  const renderItem = useCallback(
+    ({ item }) => <RegistroCard registro={item} onOpen={abrirOpcoes} isAdmin={isAdmin} />,
+    [abrirOpcoes, isAdmin]
+  );
 
   const filtrando = query.trim().length > 0 || filter !== "todos";
 
@@ -136,7 +148,7 @@ export default function Buscar({ navigation }) {
 
   return (
     <Screen>
-      <ScreenHeader title="Buscar" subtitle={subtitle} />
+      <ScreenHeader title={isAdmin ? "Buscar (todos os ACS)" : "Buscar"} subtitle={subtitle} />
 
       <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.md }}>
         <TextField

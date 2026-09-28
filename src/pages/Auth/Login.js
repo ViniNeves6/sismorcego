@@ -1,7 +1,7 @@
 // src/pages/Auth/Login.js
 import React, { useRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { Button, TextField, Text, useToast } from "../../ui";
+import { Button, TextField, SwitchRow, Text, useToast } from "../../ui";
 import AuthLayout from "./AuthLayout";
 import useAuth from "../../hooks/useAuth";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -21,6 +21,8 @@ const loginErrorMessage = (code) => {
       return "E-mail inválido.";
     case "auth/too-many-requests":
       return "Muitas tentativas. Aguarde um pouco e tente de novo.";
+    case "auth/not-admin":
+      return "Essa conta não tem acesso de administrador.";
     default:
       return "Não foi possível entrar. Verifique sua conexão e tente novamente.";
   }
@@ -38,6 +40,7 @@ export default function Login({ navigation }) {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loginAsAdmin, setLoginAsAdmin] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -55,7 +58,7 @@ export default function Login({ navigation }) {
 
     try {
       setLoading(true);
-      await signIn(email.trim(), password);
+      await signIn(email.trim(), password, { requireAdmin: loginAsAdmin });
       // Sem navegação manual: RootNavigation troca de stack quando "user" existe.
     } catch (error) {
       logger.error("Login: falha no login", error);
@@ -100,6 +103,14 @@ export default function Login({ navigation }) {
           onSubmitEditing={handleLogin}
         />
       </View>
+
+      <SwitchRow
+        icon="shield"
+        title="Entrar como administrador"
+        subtitle="Acesso de coordenador, com visão de todos os registros."
+        value={loginAsAdmin}
+        onValueChange={setLoginAsAdmin}
+      />
 
       <View style={{ gap: spacing.sm }}>
         <Button title="Entrar" onPress={handleLogin} loading={loading} />
