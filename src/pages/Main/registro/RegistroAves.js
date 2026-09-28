@@ -51,7 +51,7 @@ export default function RegistroAves({ navigation, route }) {
     };
 
     const ok = await salvar({ comum, tipoVitima: "aves", detalhes });
-    if (ok) navigation.popToTop();
+    if (ok) navigation.navigate("NovoRegistro", { savedAt: Date.now() });
   };
 
   return (

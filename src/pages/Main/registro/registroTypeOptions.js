@@ -19,6 +19,7 @@ export const CIRCUNSTANCIA_HUMANO = [
   { value: "em_casa_dormindo", label: "Em casa, dormindo" },
   { value: "praia", label: "Na praia" },
   { value: "barco", label: "No barco" },
+  { value: "outro", label: "Outro" },
 ];
 
 export const MOTIVO_NAO_BUSCOU = [
@@ -41,6 +42,7 @@ export const ESPECIE_CANINO_FELINO = [
 export const CIRCUNSTANCIA_CANINO_FELINO = [
   { value: "dormindo_fora_de_casa", label: "Dormindo fora de casa" },
   { value: "saiu_pescar_com_proprietario", label: "Saiu para pescar com o proprietário" },
+  { value: "outro", label: "Outro" },
 ];
 
 export const MOTIVO_NAO_PARTICIPOU_CANINO_FELINO = [
@@ -70,6 +72,7 @@ export const ESPECIE_PRODUCAO = [
 export const CIRCUNSTANCIA_PRODUCAO = [
   { value: "solto_pasto", label: "Solto no pasto" },
   { value: "chiqueiro_curral", label: "Chiqueiro/Curral" },
+  { value: "outro", label: "Outro" },
 ];
 
 export const PARTICIPOU_VACINACAO_PRODUCAO = [

@@ -1,6 +1,6 @@
 // src/pages/Extras/Sobre.js
 import React from 'react';
-import { Image, Linking, View, StyleSheet } from 'react-native';
+import { Image, Linking, View, useWindowDimensions } from 'react-native';
 import { ScrollScreen, ScreenHeader, Section, Card, Text, ListGroup, ListRow, Icon, useToast } from '../../ui';
 import { useTheme } from '../../theme/ThemeProvider';
 import useSpeakOnMount from '../../hooks/useSpeakOnMount';
@@ -25,8 +25,13 @@ const REDES = [
 
 export default function Sobre({ navigation }) {
   const { spacing, radius, colors } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const toast = useToast();
   useSpeakOnMount('Tela Sobre. Informações e eventos relacionados ao projeto.');
+
+  // Ver Informativos.js: width:'100%' + aspectRatio no Image não calcula a
+  // altura de forma confiável no Android, então usamos pixels explícitos.
+  const imageWidth = windowWidth - spacing.lg * 4;
 
   const abrirLink = async (url) => {
     try {
@@ -50,10 +55,12 @@ export default function Sobre({ navigation }) {
                 source={evento.imagem}
                 resizeMode="cover"
                 accessibilityLabel={evento.titulo}
-                style={[
-                  styles.image,
-                  { aspectRatio: EVENTO_ASPECT_RATIO, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
-                ]}
+                style={{
+                  width: imageWidth,
+                  height: imageWidth / EVENTO_ASPECT_RATIO,
+                  borderRadius: radius.md,
+                  backgroundColor: colors.surfaceMuted,
+                }}
               />
               <Text variant="bodyStrong">{evento.titulo}</Text>
             </View>
@@ -77,7 +84,3 @@ export default function Sobre({ navigation }) {
     </ScrollScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  image: { width: '100%' },
-});

@@ -101,6 +101,8 @@ export default function Painel() {
       .map(([chave, v]) => ({ chave, ...v }));
   }, [registros, agrupamento]);
 
+  const maxPeriodo = Math.max(1, ...periodos.map((p) => p.total));
+
   return (
     <ScrollScreen
       header={<ScreenHeader title="Painel" subtitle={loading ? undefined : `${resumo.total} registros no total`} />}
@@ -146,14 +148,33 @@ export default function Painel() {
         {periodos.length === 0 ? (
           <EmptyState icon="bar-chart-2" title="Sem dados ainda" description="Os registros aparecem aqui, agrupados por período." />
         ) : (
-          <View style={{ gap: spacing.sm }}>
-            {periodos.map((p) => (
-              <Card key={p.chave} style={styles.periodoRow}>
-                <Text variant="bodyStrong">{p.rotulo}</Text>
-                <Badge label={`${p.total} ${p.total === 1 ? "registro" : "registros"}`} tone="primary" />
-              </Card>
-            ))}
-          </View>
+          <Card>
+            <View style={{ gap: spacing.md }}>
+              {periodos.map((p) => (
+                <View key={p.chave} style={[styles.row, { alignItems: "center", gap: spacing.sm }]}>
+                  <Text variant="caption" tone="muted" style={styles.periodoLabel} numberOfLines={1}>
+                    {p.rotulo}
+                  </Text>
+                  <View style={[styles.barTrack, { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm }]}>
+                    <View
+                      style={[
+                        styles.barFill,
+                        {
+                          width: `${Math.max((p.total / maxPeriodo) * 100, 6)}%`,
+                          backgroundColor: colors.primary,
+                          borderTopRightRadius: radius.sm,
+                          borderBottomRightRadius: radius.sm,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text variant="caption" style={styles.periodoValor}>
+                    {p.total}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card>
         )}
       </Section>
     </ScrollScreen>
@@ -164,5 +185,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row" },
   card: { flex: 1, alignItems: "center", gap: 2, paddingVertical: 16 },
   map: { height: 280 },
-  periodoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  periodoLabel: { width: 84 },
+  barTrack: { flex: 1, height: 20, overflow: "hidden" },
+  barFill: { height: "100%" },
+  periodoValor: { width: 28, textAlign: "right" },
 });

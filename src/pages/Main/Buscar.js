@@ -1,7 +1,7 @@
 // src/pages/Main/Buscar.js
 // Histórico: registros locais (fila offline) + nuvem, com busca, filtro e PDF.
 import React, { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, RefreshControl, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Alert, FlatList, RefreshControl, View, StyleSheet } from "react-native";
 import {
   Screen,
   ScreenHeader,
@@ -16,6 +16,7 @@ import useAuth from "../../hooks/useAuth";
 import useHistoricoRegistros from "../../hooks/useHistoricoRegistros";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
 import { generateRegistroPdf, savePdf } from "../../services/registroPdf";
+import { excluirRegistro } from "../../services/historico";
 import logger from "../../utils/logger";
 import RegistroCard from "./buscar/RegistroCard";
 import PdfOptionsSheet from "./buscar/PdfOptionsSheet";
@@ -75,6 +76,29 @@ export default function Buscar({ navigation }) {
 
   const abrirOpcoes = useCallback((registro) => setSelected(registro), []);
 
+  const confirmarExclusao = useCallback(
+    (registro) => {
+      Alert.alert("Excluir registro?", "Essa ação não pode ser desfeita.", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await excluirRegistro(registro);
+              toast.show("Registro excluído.", { tone: "success" });
+              await refresh();
+            } catch (error) {
+              logger.error("Erro ao excluir registro:", error);
+              toast.show("Não foi possível excluir o registro.", { tone: "danger" });
+            }
+          },
+        },
+      ]);
+    },
+    [refresh, toast]
+  );
+
   const gerar = async (registro, opts) => {
     try {
       setGenerating(true);
@@ -108,8 +132,8 @@ export default function Buscar({ navigation }) {
   };
 
   const renderItem = useCallback(
-    ({ item }) => <RegistroCard registro={item} onOpen={abrirOpcoes} isAdmin={isAdmin} />,
-    [abrirOpcoes, isAdmin]
+    ({ item }) => <RegistroCard registro={item} onOpen={abrirOpcoes} onDelete={confirmarExclusao} isAdmin={isAdmin} />,
+    [abrirOpcoes, confirmarExclusao, isAdmin]
   );
 
   const filtrando = query.trim().length > 0 || filter !== "todos";

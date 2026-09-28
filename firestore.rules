@@ -25,10 +25,20 @@ service cloud.firestore {
       allow update: if isOwner(uid) && request.resource.data.role == resource.data.role;
     }
 
-    // Registros: cada ACS só escreve/lê os próprios; coordenador lê os de todos.
+    // Registros: cada ACS só cria/edita os próprios; coordenador lê os de
+    // todos e também pode apagar qualquer um (moderação).
     match /registros/{uid}/itens/{recordId} {
       allow read: if isOwner(uid) || isCoordenador();
-      allow write: if isOwner(uid);
+      allow create, update: if isOwner(uid);
+      allow delete: if isOwner(uid) || isCoordenador();
+    }
+
+    // Mesma regra de leitura acima, mas pra consultas collectionGroup("itens")
+    // (usadas pelo coordenador em Buscar/Painel/Notificações) — o Firestore
+    // exige essa forma recursiva à parte, a regra de cima sozinha não cobre
+    // collectionGroup.
+    match /{path=**}/itens/{recordId} {
+      allow read: if isCoordenador();
     }
 
     // Feed de notificações do coordenador (gerado pelo próprio aparelho dele).

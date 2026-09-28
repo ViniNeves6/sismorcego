@@ -79,14 +79,27 @@ downstream reader (`RegistroCard`, `registroPdf.js`'s `buildCamposFicha`) treats
 "humano" record and reads the old flat field names (`nomeAgredido`, `animalAgredido`,
 `tratamentoAntirrabico`, etc.) directly, without trying to reclassify them into the new option sets.
 
+Every "circunstância"-style field (Humano, Canino/Felino, Produção) includes an `"outro"` option that
+reveals a free-text input — `registroTypeOptions.js` marks which option value triggers that. After a
+successful submit, `NovoRegistro` navigates to itself with a `{ savedAt: Date.now() }` param; a
+`useEffect` watching that param resets all form state, which is what actually clears the form (state
+alone doesn't reset across the same screen instance).
+
+### Location and município auto-fill
+
+Capturing GPS in `NovoRegistro` also reverse-geocodes it into a município name via
+`src/services/geocoding.js` (`reverseGeocodeMunicipio`), calling the free Nominatim/OpenStreetMap API
+(no key, best-effort — returns `null` silently on any failure/rate-limit, never blocks the form).
+
 ### Roles: ACS vs coordenador
 
 `usuarios/{uid}.role` (`"acs"` | `"coordenador"`) in Firestore, created as `"acs"` on signup
 (`src/hooks/useAuth.js`) and never self-promotable from the client — `firestore.rules` requires
 `create` to set `role == "acs"` and `update` to leave `role` unchanged. Promoting someone to
-coordenador is a manual step in the Firebase console (there's no in-app admin UI). Login has an
-"Entrar como administrador" toggle (`src/pages/Auth/Login.js`) that, when checked, rejects the sign-in
-unless the account's role is actually `"coordenador"`.
+coordenador is a manual step in the Firebase console (there's no in-app admin UI). Login
+(`src/pages/Auth/Login.js`) has no role toggle — a coordenador account just signs in normally and
+gets the extra tabs; there used to be an "Entrar como administrador" checkbox but it was removed as
+redundant.
 
 `role` gates two tabs in `src/navigation/AppTabs.js`, both coordenador-only:
 - **Notificações** (`src/pages/Main/Notificacoes.js`) — new-registro feed. No Cloud Functions/FCM (the
@@ -96,8 +109,14 @@ unless the account's role is actually `"coordenador"`.
   (`src/services/checagemNotificacoes.js` is the orchestrator, shared between the foreground hook and
   the headless task registered in `index.js` for when the app is fully closed).
 - **Painel** (`src/pages/Main/Painel.js`) — summary counts, a `react-native-maps` `Heatmap` of
-  geolocated records, and a per-period (day/month) table. Reuses `useHistoricoRegistros()`, no
-  separate query.
+  geolocated records, and "Registros por período" as a horizontal bar chart (custom `View`-based bars,
+  not a charting library). Reuses `useHistoricoRegistros()`, no separate query.
+
+A coordenador can also delete any registro (an ACS can only delete their own) — the trash icon on
+`RegistroCard` (`src/pages/Main/buscar/RegistroCard.js`) calls `excluirRegistro()`
+(`src/services/historico.js`), which deletes the Firestore doc and cleans up the local offline queue.
+`firestore.rules` splits `create`/`update` (owner-only) from `delete` (owner or coordenador)
+accordingly.
 
 ### Firebase project
 
@@ -117,6 +136,29 @@ the actual data model (`registros/{uid}/itens/{recordId}`) anyway.
 `src/theme/tokens.js` / `src/theme/palettes.js`, consumed via `useTheme()`. Prefer composing from
 here over ad-hoc `View`/`StyleSheet` for anything that looks like a form field, button, list row, or
 screen shell — check `src/ui/index.js` for what already exists before adding a new primitive.
+
+### Splash screen: bat swarm animation
+
+`src/navigation/index.js` renders a `Splash` overlay (inside `NavigationContainer`, on top of
+`AppTabs`/`AuthStack`) while Firebase restores the session, kept up for a minimum of
+`MIN_SPLASH_MS` even if auth resolves faster, so the animation is never cut short. It fades out via
+Reanimated once both conditions are met. `src/navigation/BatSwarm.js` renders a horde of bats
+(`BAT_COUNT`, currently 18) flying diagonally across the screen: each bat is a plain `Image` of
+`src/assets/images/BatFlying.png` (a black-recolored crop of `Logomarca.png`) animated with
+`react-native-reanimated` (`useSharedValue`/`useAnimatedStyle`/`withTiming`/`withDelay`/`withRepeat`) —
+position, opacity fade-in/out, a perpendicular "wave" offset (so paths don't all run parallel and look
+like a queued line), and a fake wing-flap (`scaleX` + `rotate` oscillation, not real articulated
+wings). Every random-looking value (start/end position, size, delay, duration, flutter speed) comes
+from a seeded `pseudoRandom(seed)` hash keyed on the bat's index, so the choreography is identical on
+every launch.
+
+An SVG-based version with real articulated wings (separate rotating wing shapes via `react-native-svg`)
+was tried and abandoned: it's technically possible (the crash it initially caused was from setting an
+SVG `<G>`'s `transform` as a raw string via Reanimated's `useAnimatedProps`, which isn't Fabric/New
+Architecture-safe — fixed by using typed `rotation`/`originX`/`originY` props instead), but the vector
+bat shape looked wrong compared to the logo and wasn't worth the complexity. If revisiting real wing
+articulation, prototype the shape/rig in a disposable tool first (a sibling Remotion project was used
+for this) before porting it into the app.
 
 ### Design specs
 

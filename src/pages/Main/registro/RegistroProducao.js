@@ -23,6 +23,7 @@ export default function RegistroProducao({ navigation, route }) {
 
   const [especie, setEspecie] = useState("");
   const [circunstancia, setCircunstancia] = useState("");
+  const [circunstanciaDescricao, setCircunstanciaDescricao] = useState("");
   const [participouVacinacao, setParticipouVacinacao] = useState("");
   const [naoParticipouDescricao, setNaoParticipouDescricao] = useState("");
   const [avisouAdeparaOuMunicipio, setAvisouAdeparaOuMunicipio] = useState("");
@@ -50,6 +51,7 @@ export default function RegistroProducao({ navigation, route }) {
     const detalhes = {
       especie,
       circunstancia,
+      circunstanciaDescricao: circunstancia === "outro" ? circunstanciaDescricao.trim() || null : null,
       participouVacinacao,
       naoParticipouDescricao: participouVacinacao === "nao" ? naoParticipouDescricao.trim() || null : null,
       avisouAdeparaOuMunicipio,
@@ -59,7 +61,7 @@ export default function RegistroProducao({ navigation, route }) {
     };
 
     const ok = await salvar({ comum, tipoVitima: "producao", detalhes });
-    if (ok) navigation.popToTop();
+    if (ok) navigation.navigate("NovoRegistro", { savedAt: Date.now() });
   };
 
   return (
@@ -81,6 +83,9 @@ export default function RegistroProducao({ navigation, route }) {
           options={CIRCUNSTANCIA_PRODUCAO}
           error={errors.circunstancia}
         />
+        {circunstancia === "outro" ? (
+          <TextField label="Descreva a circunstância" value={circunstanciaDescricao} onChangeText={setCircunstanciaDescricao} />
+        ) : null}
       </Section>
 
       <Section title="Vacinação">

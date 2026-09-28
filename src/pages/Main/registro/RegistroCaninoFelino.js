@@ -23,6 +23,7 @@ export default function RegistroCaninoFelino({ navigation, route }) {
 
   const [especie, setEspecie] = useState("");
   const [circunstancia, setCircunstancia] = useState("");
+  const [circunstanciaDescricao, setCircunstanciaDescricao] = useState("");
   const [participouVacinacao, setParticipouVacinacao] = useState("");
   const [naoParticipouMotivo, setNaoParticipouMotivo] = useState("");
   const [naoParticipouDescricao, setNaoParticipouDescricao] = useState("");
@@ -51,6 +52,7 @@ export default function RegistroCaninoFelino({ navigation, route }) {
     const detalhes = {
       especie,
       circunstancia,
+      circunstanciaDescricao: circunstancia === "outro" ? circunstanciaDescricao.trim() || null : null,
       participouVacinacao,
       naoParticipouMotivo: participouVacinacao === "nao" ? naoParticipouMotivo || null : null,
       naoParticipouDescricao:
@@ -61,7 +63,7 @@ export default function RegistroCaninoFelino({ navigation, route }) {
     };
 
     const ok = await salvar({ comum, tipoVitima: "caninoFelino", detalhes });
-    if (ok) navigation.popToTop();
+    if (ok) navigation.navigate("NovoRegistro", { savedAt: Date.now() });
   };
 
   return (
@@ -83,6 +85,9 @@ export default function RegistroCaninoFelino({ navigation, route }) {
           options={CIRCUNSTANCIA_CANINO_FELINO}
           error={errors.circunstancia}
         />
+        {circunstancia === "outro" ? (
+          <TextField label="Descreva a circunstância" value={circunstanciaDescricao} onChangeText={setCircunstanciaDescricao} />
+        ) : null}
       </Section>
 
       <Section title="Vacinação">

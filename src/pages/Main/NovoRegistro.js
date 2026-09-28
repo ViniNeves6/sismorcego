@@ -2,7 +2,7 @@
 // Tela 1 da pilha "Registrar": dados comuns a qualquer tipo de vítima
 // (data, município, localidade, foto, geolocalização) + escolha do tipo,
 // que decide pra qual tela específica ir em seguida (ver RegistrarStack.js).
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Image, StyleSheet } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
@@ -23,6 +23,7 @@ import useAuth from "../../hooks/useAuth";
 import usePhotoAttachment from "../../hooks/usePhotoAttachment";
 import useLocationCapture from "../../hooks/useLocationCapture";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
+import { reverseGeocodeMunicipio } from "../../services/geocoding";
 import { TIPOS_VITIMA } from "./registro/registroTypeOptions";
 
 const ROTA_POR_TIPO = {
@@ -32,7 +33,7 @@ const ROTA_POR_TIPO = {
   producao: "RegistroProducao",
 };
 
-export default function NovoRegistro({ navigation }) {
+export default function NovoRegistro({ navigation, route }) {
   const { spacing, radius, colors } = useTheme();
   const toast = useToast();
   const { role } = useAuth();
@@ -47,9 +48,39 @@ export default function NovoRegistro({ navigation }) {
   const [errors, setErrors] = useState({});
 
   const { photo, hasPhoto, pick: pickPhoto, reset: resetPhoto } = usePhotoAttachment();
-  const { location, region, capturing, capture: captureLocation } = useLocationCapture();
+  const { location, region, capturing, capture: captureLocation, reset: resetLocation } = useLocationCapture();
 
   const notificadorTipo = role === "coordenador" ? "Coordenador" : "ACS";
+
+  // Volta aqui depois de salvar (ver RegistroHumano/CaninoFelino/Aves/Producao):
+  // limpa o formulário pra um novo registro, em vez de deixar os dados do
+  // registro anterior preenchidos.
+  useEffect(() => {
+    if (!route.params?.savedAt) return;
+    setNomeNotificador("");
+    setDataMordedura(new Date());
+    setMunicipio("");
+    setLocalidade("");
+    setErrors({});
+    resetPhoto();
+    resetLocation();
+    navigation.setParams({ savedAt: undefined });
+  }, [route.params?.savedAt]);
+
+  // Preenche o município pela localização (só se o campo ainda estiver
+  // vazio — nunca sobrescreve o que a pessoa já digitou).
+  useEffect(() => {
+    if (!location) return;
+    let cancelado = false;
+
+    reverseGeocodeMunicipio(location.latitude, location.longitude).then((cidade) => {
+      if (!cancelado && cidade) setMunicipio((prev) => (prev.trim() ? prev : cidade));
+    });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [location]);
 
   const validate = () => {
     const next = {};

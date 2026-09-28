@@ -1,7 +1,7 @@
 // src/pages/Extras/Informativos.js
 // Material educativo (infográficos) sobre morcegos e raiva.
 import React from 'react';
-import { Image, View, StyleSheet } from 'react-native';
+import { Image, View, useWindowDimensions } from 'react-native';
 import { ScrollScreen, ScreenHeader, Card, Text } from '../../ui';
 import { useTheme } from '../../theme/ThemeProvider';
 import useSpeakOnMount from '../../hooks/useSpeakOnMount';
@@ -21,7 +21,14 @@ const INFORMATIVOS = [
 
 export default function Informativos({ navigation }) {
   const { spacing, radius, colors } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   useSpeakOnMount('Tela de informativos. Material educativo sobre morcegos e raiva.');
+
+  // Largura real disponível dentro do Card (tela com padding + padding do
+  // próprio Card, dos dois lados). Passamos altura em pixel, calculada a
+  // partir daí — o par width:'100%' + aspectRatio direto no Image não
+  // calcula a altura de forma confiável no Android.
+  const imageWidth = windowWidth - spacing.lg * 4;
 
   return (
     <ScrollScreen
@@ -36,10 +43,12 @@ export default function Informativos({ navigation }) {
               source={item.imagem}
               resizeMode="contain"
               accessibilityLabel={item.titulo}
-              style={[
-                styles.image,
-                { aspectRatio: item.aspectRatio, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
-              ]}
+              style={{
+                width: imageWidth,
+                height: imageWidth / item.aspectRatio,
+                borderRadius: radius.md,
+                backgroundColor: colors.surfaceMuted,
+              }}
             />
           </View>
         </Card>
@@ -47,7 +56,3 @@ export default function Informativos({ navigation }) {
     </ScrollScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  image: { width: '100%' },
-});

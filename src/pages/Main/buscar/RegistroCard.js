@@ -1,7 +1,7 @@
 // src/pages/Main/buscar/RegistroCard.js
 import React, { memo } from "react";
 import { View, StyleSheet } from "react-native";
-import { Card, Text, Badge, Icon } from "../../../ui";
+import { Card, Text, Badge, Icon, IconButton } from "../../../ui";
 import { useTheme } from "../../../theme/ThemeProvider";
 import { formatarDataCurta } from "../../../services/registroPdf";
 
@@ -29,7 +29,7 @@ const resumoVitima = (registro) => {
   return "Registro";
 };
 
-function RegistroCard({ registro, onOpen, isAdmin }) {
+function RegistroCard({ registro, onOpen, onDelete, isAdmin }) {
   const { spacing, colors } = useTheme();
   const status = statusOf(registro);
   const municipio = registro.municipio || "Sem município";
@@ -54,7 +54,12 @@ function RegistroCard({ registro, onOpen, isAdmin }) {
               {municipio}
             </Text>
           </View>
-          <Icon name="file-text" size="md" color={colors.inkSubtle} />
+          <View style={[styles.actions, { gap: spacing.xs }]}>
+            {isAdmin && onDelete ? (
+              <IconButton icon="trash-2" label="Excluir registro" tone="danger" onPress={() => onDelete(registro)} />
+            ) : null}
+            <Icon name="file-text" size="md" color={colors.inkSubtle} />
+          </View>
         </View>
 
         <Text variant="caption" tone="muted">
@@ -79,6 +84,7 @@ function RegistroCard({ registro, onOpen, isAdmin }) {
 const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   title: { flex: 1 },
+  actions: { flexDirection: "row", alignItems: "center" },
   badges: { flexDirection: "row", flexWrap: "wrap" },
 });
 

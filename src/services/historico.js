@@ -2,8 +2,8 @@
 // Carrega o histórico de registros: fila local (SQLite) + nuvem (Firestore).
 // Regra de mescla: a versão da nuvem vence a local (por recordId).
 import NetInfo from "@react-native-community/netinfo";
-import { collection, collectionGroup, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { loadQueue } from "./offlineQueue";
+import { collection, collectionGroup, deleteDoc, doc, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { loadQueue, removeFromQueue } from "./offlineQueue";
 import { db, auth } from "./firebase";
 import logger from "../utils/logger";
 
@@ -96,6 +96,24 @@ export async function carregarNuvemTodos() {
   } catch (e) {
     logger.error("Erro ao carregar nuvem (todos):", e);
     return [];
+  }
+}
+
+// Apaga um registro (nuvem + fila local, o que existir). Só funciona se as
+// regras do Firestore permitirem — dono sempre pode; coordenador também,
+// por decisão explícita (ver firestore.rules, "allow delete").
+export async function excluirRegistro(registro) {
+  const recordId = registro?.recordId;
+  if (!recordId) throw new Error("Registro sem recordId.");
+
+  if (registro?.uid && db) {
+    await deleteDoc(doc(db, "registros", registro.uid, "itens", String(recordId)));
+  }
+
+  try {
+    await removeFromQueue([recordId]);
+  } catch (e) {
+    logger.warn("excluirRegistro: falha ao remover da fila local", e);
   }
 }
 

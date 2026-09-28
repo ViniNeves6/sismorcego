@@ -7,7 +7,8 @@ import Icon from './Icon';
 
 export default function IconButton({ icon, label, onPress, tone = 'default', disabled = false, style }) {
   const { colors, touchTarget, radius } = useTheme();
-  const color = tone === 'onBrand' ? colors.onBrand : tone === 'primary' ? colors.primary : colors.ink;
+  const color =
+    tone === 'onBrand' ? colors.onBrand : tone === 'primary' ? colors.primary : tone === 'danger' ? colors.danger : colors.ink;
 
   return (
     <Pressable

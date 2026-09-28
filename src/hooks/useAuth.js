@@ -108,21 +108,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Login
-  const signIn = async (email, password, { requireAdmin = false } = {}) => {
+  // Login. O papel (ACS/coordenador) é decidido pelo Firestore, não por
+  // uma escolha na tela — quem for coordenador já ganha as telas extras
+  // automaticamente (ver AppTabs.js), sem precisar de nenhum passo a mais aqui.
+  const signIn = async (email, password) => {
     ensureAuthEnabled();
     const cred = await signInWithEmailAndPassword(auth, email, password);
-
-    if (requireAdmin) {
-      const userRole = await ensureUserRole(cred.user.uid, cred.user.email);
-      if (userRole !== "coordenador") {
-        await firebaseSignOut(auth);
-        const err = new Error("Essa conta não tem acesso de administrador.");
-        err.code = "auth/not-admin";
-        throw err;
-      }
-    }
-
     // Retorna o user para telas que verificam emailVerified
     return cred.user;
   };

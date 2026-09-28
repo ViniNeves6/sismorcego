@@ -24,6 +24,7 @@ export default function RegistroHumano({ navigation, route }) {
   const [ocupacaoProfissao, setOcupacaoProfissao] = useState("");
   const [circunstancia, setCircunstancia] = useState("");
   const [circunstanciaPraiaQual, setCircunstanciaPraiaQual] = useState("");
+  const [circunstanciaOutraDescricao, setCircunstanciaOutraDescricao] = useState("");
   const [buscouAtendimento, setBuscouAtendimento] = useState("");
   const [naoBuscouMotivo, setNaoBuscouMotivo] = useState("");
   const [abrigoMorcego, setAbrigoMorcego] = useState("");
@@ -56,6 +57,7 @@ export default function RegistroHumano({ navigation, route }) {
       ocupacaoProfissao: ocupacaoProfissao.trim(),
       circunstancia,
       circunstanciaPraiaQual: circunstancia === "praia" ? circunstanciaPraiaQual.trim() || null : null,
+      circunstanciaOutraDescricao: circunstancia === "outro" ? circunstanciaOutraDescricao.trim() || null : null,
       buscouAtendimento,
       naoBuscouMotivo: buscouAtendimento === "nao" ? naoBuscouMotivo || null : null,
       abrigoMorcego: abrigoMorcego || null,
@@ -64,7 +66,7 @@ export default function RegistroHumano({ navigation, route }) {
     };
 
     const ok = await salvar({ comum, tipoVitima: "humano", detalhes });
-    if (ok) navigation.popToTop();
+    if (ok) navigation.navigate("NovoRegistro", { savedAt: Date.now() });
   };
 
   return (
@@ -107,6 +109,9 @@ export default function RegistroHumano({ navigation, route }) {
         />
         {circunstancia === "praia" ? (
           <TextField label="Qual praia?" value={circunstanciaPraiaQual} onChangeText={setCircunstanciaPraiaQual} />
+        ) : null}
+        {circunstancia === "outro" ? (
+          <TextField label="Descreva a circunstância" value={circunstanciaOutraDescricao} onChangeText={setCircunstanciaOutraDescricao} />
         ) : null}
       </Section>
 

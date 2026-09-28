@@ -264,6 +264,7 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
       { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_HUMANO, d.circunstancia) }
     );
     if (d.circunstancia === "praia") campos.push({ label: "Qual praia?", value: d.circunstanciaPraiaQual ?? "-" });
+    if (d.circunstancia === "outro") campos.push({ label: "Descrição da circunstância", value: d.circunstanciaOutraDescricao ?? "-" });
     campos.push({ label: "Buscou atendimento?", value: formatarBool(d.buscouAtendimento) });
     if (d.buscouAtendimento === "nao") {
       campos.push({ label: "Motivo de não buscar atendimento", value: rotulo(MOTIVO_NAO_BUSCOU, d.naoBuscouMotivo) });
@@ -278,9 +279,10 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
   } else if (tipo === "caninoFelino") {
     campos.push(
       { label: "Espécie", value: rotulo(ESPECIE_CANINO_FELINO, d.especie) },
-      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_CANINO_FELINO, d.circunstancia) },
-      { label: "Participou da última campanha de vacinação?", value: formatarBool(d.participouVacinacao) }
+      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_CANINO_FELINO, d.circunstancia) }
     );
+    if (d.circunstancia === "outro") campos.push({ label: "Descrição da circunstância", value: d.circunstanciaDescricao ?? "-" });
+    campos.push({ label: "Participou da última campanha de vacinação?", value: formatarBool(d.participouVacinacao) });
     if (d.participouVacinacao === "nao") {
       campos.push({
         label: "Motivo",
@@ -309,9 +311,13 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
   } else if (tipo === "producao") {
     campos.push(
       { label: "Espécie", value: rotulo(ESPECIE_PRODUCAO, d.especie) },
-      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_PRODUCAO, d.circunstancia) },
-      { label: "Participou da última campanha de vacinação?", value: rotulo(PARTICIPOU_VACINACAO_PRODUCAO, d.participouVacinacao) }
+      { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_PRODUCAO, d.circunstancia) }
     );
+    if (d.circunstancia === "outro") campos.push({ label: "Descrição da circunstância", value: d.circunstanciaDescricao ?? "-" });
+    campos.push({
+      label: "Participou da última campanha de vacinação?",
+      value: rotulo(PARTICIPOU_VACINACAO_PRODUCAO, d.participouVacinacao),
+    });
     if (d.participouVacinacao === "nao") campos.push({ label: "Motivo", value: d.naoParticipouDescricao ?? "-" });
     campos.push({ label: "Avisou a ADEPARÁ ou o município?", value: formatarBool(d.avisouAdeparaOuMunicipio) });
     if (d.avisouAdeparaOuMunicipio === "nao") {
