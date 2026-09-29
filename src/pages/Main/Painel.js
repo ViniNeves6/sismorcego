@@ -3,7 +3,7 @@
 // Só aparece pra role === "coordenador" (ver AppTabs.js). Reaproveita o
 // mesmo hook de dados da aba Buscar — sem consulta nova ao Firestore.
 import React, { useMemo, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, ScrollView } from "react-native";
 import MapView, { Heatmap } from "react-native-maps";
 import { ScrollScreen, ScreenHeader, Section, Card, Badge, SegmentedControl, EmptyState, Text } from "../../ui";
 import { useTheme } from "../../theme/ThemeProvider";
@@ -11,6 +11,19 @@ import useHistoricoRegistros from "../../hooks/useHistoricoRegistros";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
 
 const REGIAO_PADRAO = { latitude: -1.354986, longitude: -48.395724, latitudeDelta: 4, longitudeDelta: 4 };
+
+const CHART_HEIGHT = 160;
+const BAR_CELL_WIDTH = 56;
+
+// Arredonda o teto do eixo pra um número "redondo" (1/2/5 x 10^n), padrão
+// comum de bibliotecas de gráfico — evita grades tipo "0, 7, 14, 21".
+function tetoBonito(valor) {
+  if (valor <= 0) return 1;
+  const expoente = Math.floor(Math.log10(valor));
+  const fracao = valor / Math.pow(10, expoente);
+  const fracaoArredondada = fracao <= 1 ? 1 : fracao <= 2 ? 2 : fracao <= 5 ? 5 : 10;
+  return fracaoArredondada * Math.pow(10, expoente);
+}
 
 const AGRUPAMENTO = [
   { value: "mes", label: "Mês" },
@@ -97,11 +110,15 @@ export default function Painel() {
     }
 
     return Array.from(contagem.entries())
-      .sort(([a], [b]) => (a < b ? 1 : -1))
+      .sort(([a], [b]) => (a < b ? -1 : 1))
       .map(([chave, v]) => ({ chave, ...v }));
   }, [registros, agrupamento]);
 
   const maxPeriodo = Math.max(1, ...periodos.map((p) => p.total));
+  const tetoEixo = tetoBonito(maxPeriodo);
+  // Set() remove marcas duplicadas quando o teto é pequeno (ex.: teto=1 daria
+  // "0, 0, 1, 1, 1" sem isso).
+  const marcasEixo = Array.from(new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(tetoEixo * f))));
 
   return (
     <ScrollScreen
@@ -149,30 +166,66 @@ export default function Painel() {
           <EmptyState icon="bar-chart-2" title="Sem dados ainda" description="Os registros aparecem aqui, agrupados por período." />
         ) : (
           <Card>
-            <View style={{ gap: spacing.md }}>
-              {periodos.map((p) => (
-                <View key={p.chave} style={[styles.row, { alignItems: "center", gap: spacing.sm }]}>
-                  <Text variant="caption" tone="muted" style={styles.periodoLabel} numberOfLines={1}>
-                    {p.rotulo}
-                  </Text>
-                  <View style={[styles.barTrack, { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm }]}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        {
-                          width: `${Math.max((p.total / maxPeriodo) * 100, 6)}%`,
-                          backgroundColor: colors.primary,
-                          borderTopRightRadius: radius.sm,
-                          borderBottomRightRadius: radius.sm,
-                        },
-                      ]}
-                    />
+            <View style={styles.row}>
+              {/* Eixo Y: rótulos das marcas, de cima (teto) pra baixo (zero) */}
+              <View style={[styles.yAxis, { height: CHART_HEIGHT }]}>
+                {marcasEixo
+                  .slice()
+                  .reverse()
+                  .map((marca) => (
+                    <Text key={marca} variant="caption" tone="muted" style={styles.yAxisLabel}>
+                      {marca}
+                    </Text>
+                  ))}
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                <View>
+                  {/* Grade horizontal, atrás das barras */}
+                  <View style={[styles.gridArea, { height: CHART_HEIGHT }]} pointerEvents="none">
+                    {marcasEixo.map((marca) => (
+                      <View
+                        key={marca}
+                        style={[
+                          styles.gridLine,
+                          { bottom: (marca / tetoEixo) * CHART_HEIGHT, backgroundColor: colors.surfaceMuted },
+                        ]}
+                      />
+                    ))}
                   </View>
-                  <Text variant="caption" style={styles.periodoValor}>
-                    {p.total}
-                  </Text>
+
+                  <View style={[styles.barsRow, { height: CHART_HEIGHT }]}>
+                    {periodos.map((p) => (
+                      <View key={p.chave} style={[styles.barCell, { width: BAR_CELL_WIDTH, height: CHART_HEIGHT }]}>
+                        <Text variant="caption" style={styles.barValue} numberOfLines={1}>
+                          {p.total}
+                        </Text>
+                        <View
+                          style={[
+                            styles.barFill,
+                            {
+                              height: `${Math.max((p.total / tetoEixo) * 100, 3)}%`,
+                              backgroundColor: colors.primary,
+                              borderTopLeftRadius: radius.sm,
+                              borderTopRightRadius: radius.sm,
+                            },
+                          ]}
+                        />
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.barsRow}>
+                    {periodos.map((p) => (
+                      <View key={p.chave} style={[styles.barCell, { width: BAR_CELL_WIDTH, height: undefined }]}>
+                        <Text variant="caption" tone="muted" style={styles.periodoLabel} numberOfLines={1}>
+                          {p.rotulo}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-              ))}
+              </ScrollView>
             </View>
           </Card>
         )}
@@ -185,8 +238,16 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row" },
   card: { flex: 1, alignItems: "center", gap: 2, paddingVertical: 16 },
   map: { height: 280 },
-  periodoLabel: { width: 84 },
-  barTrack: { flex: 1, height: 20, overflow: "hidden" },
-  barFill: { height: "100%" },
-  periodoValor: { width: 28, textAlign: "right" },
+
+  yAxis: { width: 32, justifyContent: "space-between", marginRight: 8 },
+  yAxisLabel: { textAlign: "right", fontSize: 11 },
+
+  gridArea: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  gridLine: { position: "absolute", left: 0, right: 0, height: 1 },
+
+  barsRow: { flexDirection: "row", alignItems: "flex-end" },
+  barCell: { alignItems: "center", justifyContent: "flex-end" },
+  barFill: { width: 24 },
+  barValue: { marginBottom: 4, fontWeight: "600" },
+  periodoLabel: { marginTop: 8, maxWidth: BAR_CELL_WIDTH, textAlign: "center" },
 });
