@@ -1,129 +1,79 @@
-// src/services/historico.js
-// Carrega o histórico de registros: fila local (SQLite) + nuvem (Firestore).
-// Regra de mescla: a versão da nuvem vence a local (por recordId).
-import NetInfo from "@react-native-community/netinfo";
-import { collection, collectionGroup, deleteDoc, doc, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { loadQueue, removeFromQueue } from "./offlineQueue";
-import { db, auth } from "./firebase";
-import logger from "../utils/logger";
+// Histórico real: Firestore + cache/fila criptografada, separado por conta.
+import NetInfo from '@react-native-community/netinfo';
+import { collection, collectionGroup, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { cacheCloudRecord, loadQueue, updateQueueItemIfRevision } from './offlineQueue';
+import { recordIdentity } from './recordLifecycle';
+import { removeOrCancelStoredRecord } from './recordMutations';
+import { db, auth } from './firebase';
 
-export const getSortTime = (r) => {
-  const a = r?.createdAt;
-  if (a?.toDate) return a.toDate().getTime();
-  if (typeof a === "string") return new Date(a).getTime() || 0;
-  const dr = r?.dataRegistro;
-  if (typeof dr === "string") return new Date(dr).getTime() || 0;
-  return 0;
+export const getSortTime = r => {
+  const value = r?.createdAt || r?.dataRegistro;
+  if (value?.toDate) return value.toDate().getTime();
+  if (value?.seconds) return value.seconds * 1000;
+  return new Date(value || 0).getTime() || 0;
 };
 
 export const mergeByRecordId = (cloudArr, localArr) => {
   const map = new Map();
-
-  (Array.isArray(localArr) ? localArr : []).forEach((r, idx) => {
-    const key = r?.recordId || r?.id || String(idx);
-    map.set(key, { id: key, ...r, _origin: "local" });
+  (cloudArr || []).forEach(r => map.set(recordIdentity(r), { ...r, _origin: 'cloud', status: 'synced' }));
+  (localArr || []).forEach(r => {
+    const key = recordIdentity(r);
+    const remoteRevision = Number(map.get(key)?.serverRevision || 0);
+    const localRevision = Math.max(Number(r.serverRevision || 0), Number(r.baseServerRevision || 0));
+    if (!map.has(key) || r.status !== 'synced' || r.syncAction === 'delete' || localRevision > remoteRevision) map.set(key, { ...r, _origin: 'local' });
+    else if (r.photoPolicyVersion === 1) {
+      const localPhoto = Object.fromEntries(['photoBase64','photoMime','photoSize','photoUriLocal','photoLocalUri','hasLocalPhoto','photoPolicyVersion','photoHidden'].map(field=>[field,r[field] ?? null]));
+      map.set(key,{...map.get(key),...localPhoto});
+    }
   });
-
-  (Array.isArray(cloudArr) ? cloudArr : []).forEach((r, idx) => {
-    const key = r?.recordId || r?.id || String(idx);
-    map.set(key, { id: key, ...r, _origin: "cloud" });
-  });
-
-  return Array.from(map.values()).sort((a, b) => getSortTime(b) - getSortTime(a));
+  return [...map.values()].sort((a, b) => getSortTime(b) - getSortTime(a));
 };
 
-export async function carregarLocais() {
-  try {
-    const arr = await loadQueue();
-    if (!Array.isArray(arr)) return [];
-    return arr.map((r, idx) => ({ id: r?.recordId || String(idx), ...r, _origin: "local" }));
-  } catch (e) {
-    logger.error("Erro ao carregar dados locais:", e);
-    return [];
-  }
+export async function carregarLocais(role) {
+  const uid = auth?.currentUser?.uid;
+  if (!uid) return [];
+  return (await loadQueue(role === 'coordenador' ? {} : { uid })).filter(r => role === 'coordenador' || r.uid === uid);
 }
 
-export async function carregarNuvem() {
-  try {
-    const user = auth?.currentUser;
-    if (!user) return [];
+async function cloudRecords(all) {
+  const uid = auth?.currentUser?.uid;
+  if (!uid || !db) return [];
+  const net = await NetInfo.fetch();
+  if (!net.isConnected || net.isInternetReachable === false) return [];
+  const ref = all ? collectionGroup(db, 'itens') : collection(db, 'registros', uid, 'itens');
+  const snap = await getDocs(query(ref, orderBy('updatedAt', 'desc'), limit(all ? 500 : 300)));
+  const records = [];
+  snap.forEach(item => records.push({
+    ...item.data(), id: item.id, recordId: item.id,
+    uid: item.ref?.parent?.parent?.id || item.data().uid || uid,
+    status: 'synced', _origin: 'cloud',
+  }));
+  return records;
+}
 
-    if (!db) {
-      logger.log("db não disponível, pulando carregamento da nuvem");
-      return [];
+export const carregarNuvem = () => cloudRecords(false);
+export const carregarNuvemTodos = () => cloudRecords(true);
+
+export async function carregarHistorico(role, { onCloudError } = {}) {
+  const local = await carregarLocais(role);
+  let cloud = [];
+  try {
+    cloud = await cloudRecords(role === 'coordenador');
+    for (const record of cloud) {
+      const cached = local.find(r => recordIdentity(r) === recordIdentity(record));
+      if (!cached) await cacheCloudRecord(record);
+      else if (cached.status === 'synced' && cached.syncAction !== 'delete') {
+        const patch={...record};
+        if (cached.photoPolicyVersion === 1) ['photoBase64','photoMime','photoSize','photoUriLocal','photoLocalUri','hasLocalPhoto','photoPolicyVersion','photoHidden'].forEach(field=>{delete patch[field];});
+        await updateQueueItemIfRevision(cached.recordId, cached.localRevision || cached.updatedAtLocal, patch, { uid: record.uid, cloudRefresh: true });
+      }
     }
-
-    const net = await NetInfo.fetch();
-    const isOnline = !!(net.isConnected && net.isInternetReachable !== false);
-    if (!isOnline) return [];
-
-    const col = collection(db, "registros", user.uid, "itens");
-    const q = query(col, orderBy("updatedAt", "desc"), limit(300));
-    const snap = await getDocs(q);
-
-    const cloud = [];
-    snap.forEach((docSnap) => {
-      cloud.push({ id: docSnap.id, ...docSnap.data(), _origin: "cloud" });
-    });
-    return cloud;
-  } catch (e) {
-    logger.error("Erro ao carregar nuvem:", e);
-    return [];
+  } catch (error) {
+    if (!onCloudError) throw error;
+    onCloudError(error);
   }
+  // Releitura inclui edições salvas enquanto a nuvem estava sendo consultada.
+  return mergeByRecordId(cloud, await carregarLocais(role));
 }
 
-// Coordenador: todos os registros de todos os ACS (collectionGroup atravessa
-// a subcoleção "itens" de qualquer uid). Exige regra do Firestore liberando
-// a leitura para quem tiver usuarios/{uid}.role == "coordenador".
-export async function carregarNuvemTodos() {
-  try {
-    const user = auth?.currentUser;
-    if (!user || !db) return [];
-
-    const net = await NetInfo.fetch();
-    const isOnline = !!(net.isConnected && net.isInternetReachable !== false);
-    if (!isOnline) return [];
-
-    const col = collectionGroup(db, "itens");
-    const q = query(col, orderBy("updatedAt", "desc"), limit(500));
-    const snap = await getDocs(q);
-
-    const cloud = [];
-    snap.forEach((docSnap) => {
-      cloud.push({ id: docSnap.id, ...docSnap.data(), _origin: "cloud" });
-    });
-    return cloud;
-  } catch (e) {
-    logger.error("Erro ao carregar nuvem (todos):", e);
-    return [];
-  }
-}
-
-// Apaga um registro (nuvem + fila local, o que existir). Só funciona se as
-// regras do Firestore permitirem — dono sempre pode; coordenador também,
-// por decisão explícita (ver firestore.rules, "allow delete").
-export async function excluirRegistro(registro) {
-  const recordId = registro?.recordId;
-  if (!recordId) throw new Error("Registro sem recordId.");
-
-  if (registro?.uid && db) {
-    await deleteDoc(doc(db, "registros", registro.uid, "itens", String(recordId)));
-  }
-
-  try {
-    await removeFromQueue([recordId]);
-  } catch (e) {
-    logger.warn("excluirRegistro: falha ao remover da fila local", e);
-  }
-}
-
-// Local e nuvem são independentes: carrega em paralelo.
-// Coordenador vê os registros de todos (sem fila local, que é só do aparelho dele).
-export async function carregarHistorico(role) {
-  if (role === "coordenador") {
-    const cloud = await carregarNuvemTodos();
-    return mergeByRecordId(cloud, []);
-  }
-  const [local, cloud] = await Promise.all([carregarLocais(), carregarNuvem()]);
-  return mergeByRecordId(cloud, local);
-}
+export const excluirRegistro = removeOrCancelStoredRecord;

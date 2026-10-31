@@ -1,6 +1,6 @@
 // src/pages/Main/registro/RegistroCaninoFelino.js
 import React, { useState } from "react";
-import { ScrollScreen, ScreenHeader, Section, TextField, Select, Button, FooterBar, useToast } from "../../../ui";
+import { ScrollScreen, ScreenHeader, Section, TextField, Select, Button, FooterBar, useToast, AnimatedField } from "../../../ui";
 import { useTheme } from "../../../theme/ThemeProvider";
 import useSpeakOnMount from "../../../hooks/useSpeakOnMount";
 import useSalvarRegistro from "../../../hooks/useSalvarRegistro";
@@ -85,9 +85,9 @@ export default function RegistroCaninoFelino({ navigation, route }) {
           options={CIRCUNSTANCIA_CANINO_FELINO}
           error={errors.circunstancia}
         />
-        {circunstancia === "outro" ? (
+        <AnimatedField visible={circunstancia === "outro"} parentGap={spacing.md}>
           <TextField label="Descreva a circunstância" value={circunstanciaDescricao} onChangeText={setCircunstanciaDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
 
       <Section title="Vacinação">
@@ -98,17 +98,17 @@ export default function RegistroCaninoFelino({ navigation, route }) {
           options={SIM_NAO}
           error={errors.participouVacinacao}
         />
-        {participouVacinacao === "nao" ? (
+        <AnimatedField visible={participouVacinacao === "nao"} parentGap={spacing.md}>
           <Select
             label="Por quê não participou?"
             value={naoParticipouMotivo}
             onChange={setNaoParticipouMotivo}
             options={MOTIVO_NAO_PARTICIPOU_CANINO_FELINO}
           />
-        ) : null}
-        {participouVacinacao === "nao" && naoParticipouMotivo === "outro" ? (
+        </AnimatedField>
+        <AnimatedField visible={participouVacinacao === "nao" && naoParticipouMotivo === "outro"} parentGap={spacing.md}>
           <TextField label="Descreva o motivo" value={naoParticipouDescricao} onChangeText={setNaoParticipouDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
 
       <Section title="Notificação ao município">
@@ -119,12 +119,12 @@ export default function RegistroCaninoFelino({ navigation, route }) {
           options={SIM_NAO}
           error={errors.avisouMunicipio}
         />
-        {avisouMunicipio === "nao" ? (
+        <AnimatedField visible={avisouMunicipio === "nao"} parentGap={spacing.md}>
           <Select label="Por quê não avisou?" value={naoAvisouMotivo} onChange={setNaoAvisouMotivo} options={MOTIVO_NAO_AVISOU} />
-        ) : null}
-        {avisouMunicipio === "nao" && naoAvisouMotivo === "outro" ? (
+        </AnimatedField>
+        <AnimatedField visible={avisouMunicipio === "nao" && naoAvisouMotivo === "outro"} parentGap={spacing.md}>
           <TextField label="Descreva o motivo" value={naoAvisouDescricao} onChangeText={setNaoAvisouDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
     </ScrollScreen>
   );

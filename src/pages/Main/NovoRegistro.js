@@ -23,7 +23,7 @@ import useAuth from "../../hooks/useAuth";
 import usePhotoAttachment from "../../hooks/usePhotoAttachment";
 import useLocationCapture from "../../hooks/useLocationCapture";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
-import { reverseGeocodeMunicipio } from "../../services/geocoding";
+import { reverseGeocodeLocation } from "../../services/geocoding";
 import { TIPOS_VITIMA } from "./registro/registroTypeOptions";
 
 const ROTA_POR_TIPO = {
@@ -65,16 +65,18 @@ export default function NovoRegistro({ navigation, route }) {
     resetPhoto();
     resetLocation();
     navigation.setParams({ savedAt: undefined });
-  }, [route.params?.savedAt]);
+  }, [route.params?.savedAt, navigation, resetLocation, resetPhoto]);
 
-  // Preenche o município pela localização (só se o campo ainda estiver
+  // Preenche município e localidade pela localização (só se o campo ainda estiver
   // vazio — nunca sobrescreve o que a pessoa já digitou).
   useEffect(() => {
     if (!location) return;
     let cancelado = false;
 
-    reverseGeocodeMunicipio(location.latitude, location.longitude).then((cidade) => {
-      if (!cancelado && cidade) setMunicipio((prev) => (prev.trim() ? prev : cidade));
+    reverseGeocodeLocation(location.latitude, location.longitude).then((address) => {
+      if (cancelado) return;
+      if (address?.municipio) setMunicipio((prev) => (prev.trim() ? prev : address.municipio));
+      if (address?.localidade) setLocalidade((prev) => (prev.trim() ? prev : address.localidade));
     });
 
     return () => {

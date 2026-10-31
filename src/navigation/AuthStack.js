@@ -5,18 +5,20 @@ import Login from '../pages/Auth/Login';
 import Cadastro from '../pages/Auth/Cadastro';
 import EsqueciSenha from '../pages/Auth/EsqueciSenha';
 import { useTheme } from '../theme/ThemeProvider';
+import useReduceMotion from '../ui/useReduceMotion';
 
 const Stack = createNativeStackNavigator();
 
 export default function AuthStack() {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
 
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.canvas },
-        animation: 'slide_from_right',
+        animation: reduceMotion ? 'none' : 'slide_from_right',
       }}
     >
       <Stack.Screen name="Login" component={Login} />

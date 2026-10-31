@@ -1,7 +1,7 @@
 // src/pages/Main/registro/RegistroHumano.js
 import React, { useState } from "react";
 import { View } from "react-native";
-import { ScrollScreen, ScreenHeader, Section, TextField, Select, Button, FooterBar, useToast } from "../../../ui";
+import { ScrollScreen, ScreenHeader, Section, TextField, Select, Button, FooterBar, useToast, AnimatedField } from "../../../ui";
 import { useTheme } from "../../../theme/ThemeProvider";
 import useSpeakOnMount from "../../../hooks/useSpeakOnMount";
 import useSalvarRegistro from "../../../hooks/useSalvarRegistro";
@@ -107,12 +107,12 @@ export default function RegistroHumano({ navigation, route }) {
           options={CIRCUNSTANCIA_HUMANO}
           error={errors.circunstancia}
         />
-        {circunstancia === "praia" ? (
+        <AnimatedField visible={circunstancia === "praia"} parentGap={spacing.md}>
           <TextField label="Qual praia?" value={circunstanciaPraiaQual} onChangeText={setCircunstanciaPraiaQual} />
-        ) : null}
-        {circunstancia === "outro" ? (
+        </AnimatedField>
+        <AnimatedField visible={circunstancia === "outro"} parentGap={spacing.md}>
           <TextField label="Descreva a circunstância" value={circunstanciaOutraDescricao} onChangeText={setCircunstanciaOutraDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
 
       <Section title="Atendimento">
@@ -123,24 +123,24 @@ export default function RegistroHumano({ navigation, route }) {
           options={SIM_NAO}
           error={errors.buscouAtendimento}
         />
-        {buscouAtendimento === "nao" ? (
+        <AnimatedField visible={buscouAtendimento === "nao"} parentGap={spacing.md}>
           <Select
             label="Por quê não buscou?"
             value={naoBuscouMotivo}
             onChange={setNaoBuscouMotivo}
             options={MOTIVO_NAO_BUSCOU}
           />
-        ) : null}
+        </AnimatedField>
       </Section>
 
       <Section title="Abrigo de morcego (opcional)">
         <Select label="Há abrigo de morcego no local?" value={abrigoMorcego} onChange={setAbrigoMorcego} options={SIM_NAO} />
-        {abrigoMorcego === "sim" ? (
+        <AnimatedField visible={abrigoMorcego === "sim"} parentGap={spacing.md}>
           <View style={{ gap: spacing.md }}>
             <Select label="Tipo de abrigo" value={abrigoTipo} onChange={setAbrigoTipo} options={TIPO_ABRIGO_MORCEGO} />
             <TextField label="Descreva o abrigo (opcional)" value={abrigoDescricao} onChangeText={setAbrigoDescricao} />
           </View>
-        ) : null}
+        </AnimatedField>
       </Section>
     </ScrollScreen>
   );

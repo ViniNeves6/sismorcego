@@ -1,6 +1,6 @@
 // src/pages/Main/registro/RegistroProducao.js
 import React, { useState } from "react";
-import { ScrollScreen, ScreenHeader, Section, TextField, Select, Button, FooterBar, useToast } from "../../../ui";
+import { ScrollScreen, ScreenHeader, Section, TextField, Select, Button, FooterBar, useToast, AnimatedField } from "../../../ui";
 import { useTheme } from "../../../theme/ThemeProvider";
 import useSpeakOnMount from "../../../hooks/useSpeakOnMount";
 import useSalvarRegistro from "../../../hooks/useSalvarRegistro";
@@ -83,9 +83,9 @@ export default function RegistroProducao({ navigation, route }) {
           options={CIRCUNSTANCIA_PRODUCAO}
           error={errors.circunstancia}
         />
-        {circunstancia === "outro" ? (
+        <AnimatedField visible={circunstancia === "outro"} parentGap={spacing.md}>
           <TextField label="Descreva a circunstância" value={circunstanciaDescricao} onChangeText={setCircunstanciaDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
 
       <Section title="Vacinação">
@@ -96,9 +96,9 @@ export default function RegistroProducao({ navigation, route }) {
           options={PARTICIPOU_VACINACAO_PRODUCAO}
           error={errors.participouVacinacao}
         />
-        {participouVacinacao === "nao" ? (
+        <AnimatedField visible={participouVacinacao === "nao"} parentGap={spacing.md}>
           <TextField label="Por quê não participou?" value={naoParticipouDescricao} onChangeText={setNaoParticipouDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
 
       <Section title="Notificação">
@@ -109,12 +109,12 @@ export default function RegistroProducao({ navigation, route }) {
           options={SIM_NAO}
           error={errors.avisouAdeparaOuMunicipio}
         />
-        {avisouAdeparaOuMunicipio === "nao" ? (
+        <AnimatedField visible={avisouAdeparaOuMunicipio === "nao"} parentGap={spacing.md}>
           <Select label="Por quê não avisou?" value={naoAvisouMotivo} onChange={setNaoAvisouMotivo} options={MOTIVO_NAO_AVISOU} />
-        ) : null}
-        {avisouAdeparaOuMunicipio === "nao" && naoAvisouMotivo === "outro" ? (
+        </AnimatedField>
+        <AnimatedField visible={avisouAdeparaOuMunicipio === "nao" && naoAvisouMotivo === "outro"} parentGap={spacing.md}>
           <TextField label="Descreva o motivo" value={naoAvisouDescricao} onChangeText={setNaoAvisouDescricao} />
-        ) : null}
+        </AnimatedField>
       </Section>
     </ScrollScreen>
   );

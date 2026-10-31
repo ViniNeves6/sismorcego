@@ -48,6 +48,8 @@ export const CIRCUNSTANCIA_CANINO_FELINO = [
 export const MOTIVO_NAO_PARTICIPOU_CANINO_FELINO = [
   { value: "outro", label: "Outro (descrever)" },
   { value: "nao_sabe", label: "Não sabe / não lembra" },
+  { value: "nao_sabia_campanha", label: "Não sabia da campanha" },
+  { value: "nao_conseguiu_participar", label: "Não conseguiu participar" },
 ];
 
 // ===== Aves =====

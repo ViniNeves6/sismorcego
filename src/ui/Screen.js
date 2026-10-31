@@ -3,7 +3,8 @@
 //   <Screen>        conteúdo que cabe na tela (ex.: listas com FlatList própria)
 //   <ScrollScreen>  formulários e páginas longas (rola, cuida do teclado)
 import React from 'react';
-import { ScrollView, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { View, Platform, StyleSheet } from 'react-native';
+import KeyboardScrollView from './KeyboardScrollView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -32,11 +33,10 @@ export function ScrollScreen({
   return (
     <SafeAreaView edges={edges} style={[styles.fill, { backgroundColor: colors.canvas }, style]}>
       {header}
-      <KeyboardAvoidingView
+      <View
         style={styles.fill}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
+        <KeyboardScrollView
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
@@ -47,9 +47,9 @@ export function ScrollScreen({
           {...scrollProps}
         >
           {children}
-        </ScrollView>
+        </KeyboardScrollView>
         {footer}
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }

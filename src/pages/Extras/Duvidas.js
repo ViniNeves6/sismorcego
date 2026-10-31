@@ -1,6 +1,6 @@
 // src/pages/Extras/Duvidas.js
 import React, { useState } from 'react';
-import { ActivityIndicator, RefreshControl, View, StyleSheet } from 'react-native';
+import { RefreshControl, View, StyleSheet } from 'react-native';
 import {
   ScrollScreen,
   ScreenHeader,
@@ -76,7 +76,7 @@ export default function Duvidas({ navigation }) {
   return (
     <ScrollScreen
       header={<ScreenHeader title="Dúvidas" onBack={() => navigation.goBack()} />}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      refreshControl={<RefreshControl refreshing={Boolean(loading || refreshing)} onRefresh={refresh} />}
     >
       {adicionando ? (
         <Card>
@@ -98,14 +98,7 @@ export default function Duvidas({ navigation }) {
         <Button title="Nova dúvida" icon="plus" variant="secondary" onPress={() => setAdicionando(true)} />
       )}
 
-      {loading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" />
-          <Text variant="body" tone="muted">
-            Carregando dúvidas…
-          </Text>
-        </View>
-      ) : error ? (
+      {error ? (
         <EmptyState
           icon="wifi-off"
           title="Não foi possível carregar"
@@ -113,7 +106,7 @@ export default function Duvidas({ navigation }) {
           actionLabel="Tentar de novo"
           onAction={reload}
         />
-      ) : duvidas.length === 0 ? (
+      ) : !loading && duvidas.length === 0 ? (
         <EmptyState
           icon="help-circle"
           title="Nenhuma dúvida ainda"
@@ -140,5 +133,4 @@ export default function Duvidas({ navigation }) {
 const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   half: { flex: 1 },
-  loading: { alignItems: 'center', gap: 12, paddingTop: 32 },
 });

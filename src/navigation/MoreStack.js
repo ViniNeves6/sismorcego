@@ -9,18 +9,20 @@ import Duvidas from '../pages/Extras/Duvidas';
 import Creditos from '../pages/Extras/Creditos';
 import Informativos from '../pages/Extras/Informativos';
 import { useTheme } from '../theme/ThemeProvider';
+import useReduceMotion from '../ui/useReduceMotion';
 
 const Stack = createNativeStackNavigator();
 
 export default function MoreStack() {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
 
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.canvas },
-        animation: 'slide_from_right',
+        animation: reduceMotion ? 'none' : 'slide_from_right',
       }}
     >
       <Stack.Screen name="MaisInicio" component={Mais} />

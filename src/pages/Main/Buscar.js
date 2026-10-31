@@ -1,7 +1,7 @@
 // src/pages/Main/Buscar.js
 // Histórico: registros locais (fila offline) + nuvem, com busca, filtro e PDF.
-import React, { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, RefreshControl, View, StyleSheet } from "react-native";
+import React, { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import { FlatList, RefreshControl, View, StyleSheet } from "react-native";
 import {
   Screen,
   ScreenHeader,
@@ -10,6 +10,8 @@ import {
   EmptyState,
   Text,
   useToast,
+  BottomSheet,
+  Button,
 } from "../../ui";
 import { useTheme } from "../../theme/ThemeProvider";
 import useAuth from "../../hooks/useAuth";
@@ -21,6 +23,7 @@ import logger from "../../utils/logger";
 import RegistroCard from "./buscar/RegistroCard";
 import PdfOptionsSheet from "./buscar/PdfOptionsSheet";
 import PdfViewerModal from "./buscar/PdfViewerModal";
+import { canModifyRecord } from '../../services/recordLifecycle';
 
 const FILTERS = [
   { value: "todos", label: "Todos" },
@@ -45,7 +48,7 @@ const keyExtractor = (r) => r.id;
 export default function Buscar({ navigation }) {
   const { spacing } = useTheme();
   const toast = useToast();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const isAdmin = role === "coordenador";
   useSpeakOnMount(
     isAdmin ? "Tela de histórico. Registros de todos os ACS." : "Tela de histórico. Registros locais e da nuvem."
@@ -60,6 +63,10 @@ export default function Buscar({ navigation }) {
   const [selected, setSelected] = useState(null); // registro com a folha de opções aberta
   const [generating, setGenerating] = useState(false);
   const [pdf, setPdf] = useState(null); // { path, base64 } enquanto o visualizador está aberto
+  const pendingPdf = useRef(null);
+  const [cancellationRecord, setCancellationRecord] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   // Derivado durante a renderização (sem efeito nem estado extra).
   const visiveis = useMemo(() => {
@@ -78,33 +85,18 @@ export default function Buscar({ navigation }) {
 
   const confirmarExclusao = useCallback(
     (registro) => {
-      Alert.alert("Excluir registro?", "Essa ação não pode ser desfeita.", [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await excluirRegistro(registro);
-              toast.show("Registro excluído.", { tone: "success" });
-              await refresh();
-            } catch (error) {
-              logger.error("Erro ao excluir registro:", error);
-              toast.show("Não foi possível excluir o registro.", { tone: "danger" });
-            }
-          },
-        },
-      ]);
+      if (!canModifyRecord(registro, user?.uid)) return;
+      setCancellationReason(''); setCancellationRecord(registro);
     },
-    [refresh, toast]
+    [user?.uid]
   );
 
   const gerar = async (registro, opts) => {
     try {
       setGenerating(true);
       const result = await generateRegistroPdf(registro, opts);
+      pendingPdf.current = result;
       setSelected(null);
-      setPdf(result);
     } catch (error) {
       logger.warn("Erro ao gerar PDF:", error);
       toast.show("Não foi possível gerar o PDF.", { tone: "danger" });
@@ -117,7 +109,7 @@ export default function Buscar({ navigation }) {
     const current = pdf;
     try {
       const result = await savePdf(current);
-      setPdf(null);
+      if (result) setPdf(null);
       if (result === "saved") toast.show("PDF salvo no local escolhido.", { tone: "success" });
     } catch (error) {
       logger.error("Erro ao salvar/compartilhar PDF:", error);
@@ -132,20 +124,14 @@ export default function Buscar({ navigation }) {
   };
 
   const renderItem = useCallback(
-    ({ item }) => <RegistroCard registro={item} onOpen={abrirOpcoes} onDelete={confirmarExclusao} isAdmin={isAdmin} />,
-    [abrirOpcoes, confirmarExclusao, isAdmin]
+    ({ item }) => <RegistroCard registro={item} onOpen={abrirOpcoes} onDelete={confirmarExclusao} isAdmin={isAdmin}
+      canCancel={canModifyRecord(item, user?.uid)} />,
+    [abrirOpcoes, confirmarExclusao, isAdmin, user?.uid]
   );
 
   const filtrando = query.trim().length > 0 || filter !== "todos";
 
-  const empty = loading ? (
-    <View style={styles.loading}>
-      <ActivityIndicator size="large" />
-      <Text variant="body" tone="muted">
-        Carregando registros…
-      </Text>
-    </View>
-  ) : filtrando ? (
+  const empty = loading ? null : filtrando ? (
     <EmptyState
       icon="search"
       title="Nenhum resultado"
@@ -194,7 +180,7 @@ export default function Buscar({ navigation }) {
         renderItem={renderItem}
         ListEmptyComponent={empty}
         contentContainerStyle={[styles.list, { padding: spacing.lg, gap: spacing.md }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        refreshControl={<RefreshControl refreshing={Boolean(loading || refreshing)} onRefresh={refresh} />}
         keyboardShouldPersistTaps="handled"
         initialNumToRender={10}
         windowSize={7}
@@ -205,14 +191,30 @@ export default function Buscar({ navigation }) {
         generating={generating}
         onClose={() => setSelected(null)}
         onSelect={gerar}
+        onExited={() => { if (pendingPdf.current) { setPdf(pendingPdf.current); pendingPdf.current = null; } }}
       />
 
       <PdfViewerModal pdf={pdf} onClose={() => setPdf(null)} onDownload={baixar} onError={falhaNoVisualizador} />
+      <BottomSheet visible={Boolean(cancellationRecord)} title="Cancelar ocorrência"
+        onClose={() => { if (!cancelling) setCancellationRecord(null); }}>
+        <View style={{ padding: spacing.lg, gap: spacing.md }}>
+          <Text>A ocorrência será preservada no histórico. Informe a justificativa.</Text>
+          <TextField label="Motivo do cancelamento" value={cancellationReason} onChangeText={setCancellationReason} maxLength={1000} editable={!cancelling} />
+          <Button title="Confirmar cancelamento" variant="danger" loading={cancelling} onPress={async () => {
+            if (cancelling || !canModifyRecord(cancellationRecord, user?.uid)) return;
+            setCancelling(true);
+            try {
+              await excluirRegistro(cancellationRecord, cancellationReason);
+              setCancellationRecord(null); toast.show('Ocorrência cancelada.', { tone: 'success' }); await refresh();
+            } catch (error) { toast.show(error.message || 'Não foi possível cancelar a ocorrência.', { tone: 'danger' }); }
+            finally { setCancelling(false); }
+          }} />
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   list: { flexGrow: 1 },
-  loading: { alignItems: "center", gap: 12, paddingTop: 48 },
 });

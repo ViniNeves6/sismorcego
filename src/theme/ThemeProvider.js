@@ -1,11 +1,11 @@
 // src/theme/ThemeProvider.js
-// Única fonte de tema. Junta: esquema do sistema (claro/escuro), alto contraste
+// Única fonte de tema. Usa fundo claro por padrão e permite alto contraste
 // e escala de fonte do AccessibilityProvider. Componentes só chamam useTheme().
 import React, { createContext, use, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
 import useAccessibility from '../hooks/useAccessibility';
 import { palettes } from './palettes';
 import { spacing, radius, iconSize, touchTarget, typography, motion, shadow } from './tokens';
+import { fontFamilies } from '../ui/FontText';
 
 function buildTheme(colors, fontScale) {
   // Escala tipográfica já multiplicada pelo fontScale do app.
@@ -36,13 +36,12 @@ function buildTheme(colors, fontScale) {
 const ThemeContext = createContext(buildTheme(palettes.light, 1));
 
 export function ThemeProvider({ children }) {
-  const scheme = useColorScheme();
   const { highContrast, fontScale } = useAccessibility();
 
   const theme = useMemo(() => {
-    const colors = highContrast ? palettes.highContrast : scheme === 'dark' ? palettes.dark : palettes.light;
+    const colors = highContrast ? palettes.highContrast : palettes.light;
     return buildTheme(colors, fontScale);
-  }, [scheme, highContrast, fontScale]);
+  }, [highContrast, fontScale]);
 
   return <ThemeContext value={theme}>{children}</ThemeContext>;
 }
@@ -65,10 +64,10 @@ export function makeNavigationTheme(theme) {
       notification: colors.danger,
     },
     fonts: {
-      regular: { fontFamily: 'System', fontWeight: '400' },
-      medium: { fontFamily: 'System', fontWeight: '500' },
-      bold: { fontFamily: 'System', fontWeight: '700' },
-      heavy: { fontFamily: 'System', fontWeight: '800' },
+      regular: { fontFamily: fontFamilies.regular, fontWeight: 'normal' },
+      medium: { fontFamily: fontFamilies.medium, fontWeight: 'normal' },
+      bold: { fontFamily: fontFamilies.bold, fontWeight: 'normal' },
+      heavy: { fontFamily: fontFamilies.extraBold, fontWeight: 'normal' },
     },
   };
 }

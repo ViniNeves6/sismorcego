@@ -3,6 +3,7 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { BottomSheet, ListGroup, ListRow, Text } from "../../../ui";
 import { useTheme } from "../../../theme/ThemeProvider";
+import useSpeakOnMount from '../../../hooks/useSpeakOnMount';
 
 const OPTIONS = [
   {
@@ -28,11 +29,12 @@ const OPTIONS = [
   },
 ];
 
-export default function PdfOptionsSheet({ registro, generating, onClose, onSelect }) {
+export default function PdfOptionsSheet({ registro, generating, onClose, onSelect, onExited }) {
   const { colors, spacing } = useTheme();
+  useSpeakOnMount('Gerar ficha em PDF. Escolha Ficha completa, Sem localização ou Sem nomes', { active: Boolean(registro), priority: 40 });
 
   return (
-    <BottomSheet visible={Boolean(registro)} onClose={generating ? () => {} : onClose} title="Gerar ficha em PDF">
+    <BottomSheet visible={Boolean(registro)} onClose={generating ? () => {} : onClose} onExited={onExited} title="Gerar ficha em PDF">
       <View style={{ padding: spacing.xl, paddingTop: spacing.sm, gap: spacing.lg }}>
         <Text variant="body" tone="muted">
           A ficha pode conter dados pessoais. Escolha o que incluir antes de gerar ou compartilhar.

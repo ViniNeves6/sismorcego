@@ -14,6 +14,7 @@ export { default as Section } from './Section';
 export { default as Badge } from './Badge';
 export { default as SwitchRow } from './SwitchRow';
 export { default as AccordionItem } from './AccordionItem';
+export { default as AnimatedField } from './AnimatedField';
 export { default as Avatar } from './Avatar';
 export { default as EmptyState } from './EmptyState';
 export { default as ScreenHeader } from './ScreenHeader';

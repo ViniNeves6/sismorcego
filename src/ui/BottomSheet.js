@@ -7,7 +7,7 @@ import useReduceMotion from './useReduceMotion';
 import IconButton from './IconButton';
 import Text from './Text';
 
-export default function BottomSheet({ visible, onClose, title, children }) {
+export default function BottomSheet({ visible, onClose, onExited, title, children }) {
   const { colors, radius, spacing, motion, shadow } = useTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -15,24 +15,38 @@ export default function BottomSheet({ visible, onClose, title, children }) {
 
   const [mounted, setMounted] = useState(visible);
   const progress = useRef(new Animated.Value(0)).current;
+  const wasOpen = useRef(visible);
+  const exitCallback = useRef(onExited);
+  exitCallback.current = onExited;
 
   useEffect(() => {
+    let transition;
     if (visible) {
+      wasOpen.current = true;
       setMounted(true);
-      Animated.timing(progress, {
+      transition = Animated.timing(progress, {
         toValue: 1,
         duration: reduceMotion ? 0 : motion.enter,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(progress, {
+      });
+      transition.start();
+    } else if (wasOpen.current) {
+      transition = Animated.timing(progress, {
         toValue: 0,
         duration: reduceMotion ? 0 : motion.exit,
         easing: Easing.in(Easing.cubic),
         useNativeDriver: true,
-      }).start(({ finished }) => finished && setMounted(false));
+      });
+      transition.start(({ finished }) => {
+        if (finished) {
+          wasOpen.current = false;
+          setMounted(false);
+          exitCallback.current?.();
+        }
+      });
     }
+    return () => transition?.stop();
   }, [visible, progress, reduceMotion, motion.enter, motion.exit]);
 
   if (!mounted) return null;

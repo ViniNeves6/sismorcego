@@ -15,7 +15,7 @@ const TONES = {
 };
 
 export default function Badge({ label, tone = 'neutral', icon, style }) {
-  const { colors, radius, spacing, type, isHighContrast } = useTheme();
+  const { colors, radius, spacing, isHighContrast } = useTheme();
   const t = TONES[tone];
   const fg = colors[t.fg];
 
@@ -37,7 +37,7 @@ export default function Badge({ label, tone = 'neutral', icon, style }) {
       ]}
     >
       {icon ? <Icon name={icon} size="sm" color={fg} /> : null}
-      <Text variant="label" style={{ color: fg, fontSize: type.caption.fontSize, lineHeight: type.caption.lineHeight }}>
+      <Text variant="caption" style={{ color: fg, fontWeight: '600' }}>
         {label}
       </Text>
     </View>

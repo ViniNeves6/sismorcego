@@ -2,6 +2,7 @@
  * Fase 3: Novo Registro, Buscar e serviços de histórico/PDF.
  */
 import React from 'react';
+jest.mock('../src/hooks/useAuth', () => ({ __esModule: true, default: () => ({ user: { uid: 'acs', displayName: 'Ana' }, role: 'acs' }) }));
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import { Text as RNText } from 'react-native';
 
@@ -103,72 +104,32 @@ afterEach(() => {
 });
 
 describe('NovoRegistro', () => {
-  test('renderiza seções e o botão de salvar', async () => {
-    const tree = await render(<NovoRegistro />);
-    expect(texts(tree)).toEqual(
-      expect.arrayContaining(['Novo registro', 'Responsável', 'Pessoa agredida', 'Ocorrência', 'Localização']),
-    );
-    expect(tree.root.findAllByProps({ accessibilityLabel: 'Salvar registro' }).length).toBeGreaterThan(0);
+  const nav = { navigate: jest.fn(), setParams: jest.fn() };
+  test('mostra os dados comuns e os quatro destinos por tipo de vítima', async () => {
+    const tree = await render(<NovoRegistro navigation={nav} route={{ params: {} }} />);
+    expect(texts(tree)).toEqual(expect.arrayContaining(['Novo registro', 'Notificador', 'Ocorrência', 'Localização', 'Humano', 'Canino / Felino', 'Aves', 'Animal de produção']));
   });
-
-  test('não salva sem os campos obrigatórios e mostra erros inline', async () => {
-    const tree = await render(<NovoRegistro />);
-    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Salvar registro' });
-
+  test('impede avançar sem os dados comuns obrigatórios', async () => {
+    const tree = await render(<NovoRegistro navigation={nav} route={{ params: {} }} />);
+    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Humano' });
+    expect(nav.navigate).not.toHaveBeenCalled();
+    expect(texts(tree)).toEqual(expect.arrayContaining(['Informe o nome do notificador.', 'Informe o município da mordedura.']));
+  });
+  test('encaminha os dados reais para o formulário específico', async () => {
+    const tree = await render(<NovoRegistro navigation={nav} route={{ params: {} }} />);
+    await type(tree, 'Nome do notificador', ' Maria Souza ');
+    await type(tree, 'Município da mordedura', 'Curuçá');
+    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Aves' });
+    expect(nav.navigate).toHaveBeenCalledWith('RegistroAves', { comum: expect.objectContaining({ nomeNotificador: 'Maria Souza', municipio: 'Curuçá', location: null, photoBase64: null }) });
     expect(addToQueue).not.toHaveBeenCalled();
-    expect(texts(tree)).toEqual(
-      expect.arrayContaining([
-        'Informe o nome do ACS.',
-        'Informe o nome da pessoa agredida.',
-        'Selecione o sexo.',
-        'Informe se fez tratamento antirrábico.',
-        'Informe o município da agressão.',
-      ]),
-    );
-  });
-
-  test('salva o registro na fila com os valores gravados no formato de sempre', async () => {
-    const tree = await render(<NovoRegistro />);
-
-    await type(tree, 'Nome do ACS', ' Maria Souza ');
-    await type(tree, 'Nome', 'João Lima');
-    await type(tree, 'Município da agressão', 'Curuçá');
-    await type(tree, 'Idade (opcional)', '4a2x');
-
-    // Selects abrem numa folha; escolhe a opção pelo nome acessível.
-    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Sexo' });
-    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Feminino' });
-    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Fez tratamento antirrábico?' });
-    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Não' });
-
-    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Salvar registro' });
-
-    expect(addToQueue).toHaveBeenCalledTimes(1);
-    const saved = addToQueue.mock.calls[0][0];
-    expect(saved).toMatchObject({
-      recordId: 'rec-123',
-      uid: 'u1',
-      nomeAcs: 'Maria Souza',
-      nomeAgredido: 'João Lima',
-      municipio: 'Curuçá',
-      idade: 42,
-      sexo: 'F',
-      tratamentoAntirrabico: 'nao',
-      status: 'pending',
-      retryCount: 0,
-      location: null,
-      photoBase64: null,
-      photoUriLocal: null,
-    });
-    expect(typeof saved.dataAgressao).toBe('string');
   });
 });
 
 describe('Buscar', () => {
   const nav = { navigate: jest.fn() };
   const registros = [
-    { recordId: 'a', municipio: 'Curuçá', nomeAgredido: 'João', status: 'pending', dataRegistro: '2024-03-05T12:00:00.000Z', createdAt: '2024-03-05T12:00:00.000Z' },
-    { recordId: 'b', municipio: 'Belém', nomeAgredido: 'Ana', status: 'synced', dataRegistro: '2024-03-06T12:00:00.000Z', createdAt: '2024-03-06T12:00:00.000Z' },
+    { recordId: 'a', uid: 'u1', municipio: 'Curuçá', nomeAgredido: 'João', status: 'pending', dataRegistro: '2024-03-05T12:00:00.000Z', createdAt: '2024-03-05T12:00:00.000Z' },
+    { recordId: 'b', uid: 'u1', municipio: 'Belém', nomeAgredido: 'Ana', status: 'synced', dataRegistro: '2024-03-06T12:00:00.000Z', createdAt: '2024-03-06T12:00:00.000Z' },
   ];
 
   test('lista registros com status legível', async () => {
@@ -211,7 +172,7 @@ describe('Buscar', () => {
 });
 
 describe('serviços', () => {
-  test('mergeByRecordId: nuvem vence local e ordena do mais novo para o mais antigo', () => {
+  test('mergeByRecordId: alteração local pendente vence a cópia antiga da nuvem', () => {
     const local = [
       { recordId: 'a', status: 'pending', createdAt: '2024-01-01T00:00:00.000Z' },
       { recordId: 'c', status: 'pending', createdAt: '2024-03-01T00:00:00.000Z' },
@@ -219,11 +180,12 @@ describe('serviços', () => {
     const cloud = [{ recordId: 'a', status: 'synced', createdAt: '2024-01-01T00:00:00.000Z' }];
     const out = mergeByRecordId(cloud, local);
     expect(out.map((r) => r.recordId)).toEqual(['c', 'a']);
-    expect(out.find((r) => r.recordId === 'a')).toMatchObject({ status: 'synced', _origin: 'cloud' });
+    expect(out.find((r) => r.recordId === 'a')).toMatchObject({ status: 'pending', _origin: 'local' });
   });
 
   test('formatadores do PDF', () => {
     expect(formatarDataCurta('2024-03-05T12:00:00.000Z')).toBe('05/03/2024');
+    expect(formatarDataCurta('2026-10-01')).toBe('01/10/2026');
     expect(formatarDataCurta(null)).toBe('-');
     expect(formatarSexo('M')).toBe('Masculino');
     expect(formatarTratamento('nao')).toBe('Não');

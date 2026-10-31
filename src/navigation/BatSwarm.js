@@ -1,6 +1,6 @@
 // src/navigation/BatSwarm.js
 import React from "react";
-import { Image, useWindowDimensions } from "react-native";
+import { Image, StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,7 +9,9 @@ import Animated, {
   withRepeat,
   withSequence,
   Easing,
+  cancelAnimation,
 } from "react-native-reanimated";
+import useReduceMotion from '../ui/useReduceMotion';
 
 const BAT_SOURCE = require("../assets/images/BatFlying.png");
 const BAT_RATIO = 79 / 100; // altura / largura do sprite
@@ -83,8 +85,8 @@ function FlyingBat({ index, width: screenW, height: screenH }) {
         )
       )
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => { cancelAnimation(progress); cancelAnimation(flutter); };
+  }, [delay, duration, flutterMs, progress, flutter]);
 
   const style = useAnimatedStyle(() => {
     const p = progress.get();
@@ -112,11 +114,13 @@ function FlyingBat({ index, width: screenW, height: screenH }) {
   });
 
   return (
-    <Animated.View style={[{ position: "absolute", top: 0, left: 0 }, style]}>
+    <Animated.View style={[styles.bat, style]}>
       <Image
         source={BAT_SOURCE}
         style={{ width: size, height: size * BAT_RATIO }}
         resizeMode="contain"
+        accessible={false}
+        importantForAccessibility="no"
       />
     </Animated.View>
   );
@@ -124,12 +128,15 @@ function FlyingBat({ index, width: screenW, height: screenH }) {
 
 export default function BatSwarm({ reduced = false }) {
   const { width, height } = useWindowDimensions();
-  if (reduced) return null;
+  const preferredReducedMotion = useReduceMotion();
+  if (reduced || preferredReducedMotion) return null;
   return (
-    <>
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {Array.from({ length: BAT_COUNT }, (_, i) => (
         <FlyingBat key={i} index={i} width={width} height={height} />
       ))}
-    </>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({ bat: { position: 'absolute', top: 0, left: 0 } });

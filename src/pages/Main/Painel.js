@@ -9,6 +9,7 @@ import { ScrollScreen, ScreenHeader, Section, Card, Badge, SegmentedControl, Emp
 import { useTheme } from "../../theme/ThemeProvider";
 import useHistoricoRegistros from "../../hooks/useHistoricoRegistros";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
+import { parseRegistroDate } from '../../services/registroDate';
 
 const REGIAO_PADRAO = { latitude: -1.354986, longitude: -48.395724, latitudeDelta: 4, longitudeDelta: 4 };
 
@@ -37,8 +38,7 @@ const MESES = [
 
 const dataDoRegistro = (r) => {
   const iso = r.dataAgressao || r.dataMordedura || r.dataRegistro;
-  const d = iso ? new Date(iso) : null;
-  return d && !isNaN(d.getTime()) ? d : null;
+  return parseRegistroDate(iso);
 };
 
 const regiaoDosPontos = (pontos) => {
@@ -60,7 +60,7 @@ const regiaoDosPontos = (pontos) => {
 export default function Painel() {
   const { spacing, colors, radius } = useTheme();
   useSpeakOnMount("Painel do coordenador. Resumo, mapa de calor e registros por período.");
-  const { registros, loading } = useHistoricoRegistros();
+  const { registros, loading, error, refresh } = useHistoricoRegistros();
 
   const [agrupamento, setAgrupamento] = useState("mes");
 
@@ -125,6 +125,7 @@ export default function Painel() {
       header={<ScreenHeader title="Painel" subtitle={loading ? undefined : `${resumo.total} registros no total`} />}
       contentContainerStyle={{ gap: spacing.xl }}
     >
+      {error ? <EmptyState icon="alert-circle" title="Não foi possível atualizar o painel" description="Verifique sua conexão. Os dados já salvos foram preservados." actionLabel="Tentar novamente" onAction={refresh} /> : null}
       <Section title="Resumo">
         <View style={[styles.row, { gap: spacing.md }]}>
           <Card style={styles.card}>

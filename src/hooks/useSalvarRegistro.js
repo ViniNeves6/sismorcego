@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { DeviceEventEmitter } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
-import "react-native-get-random-values"; // precisa vir antes do nanoid
-import { nanoid } from "nanoid";
+import "react-native-get-random-values";
+import { completeRecordDraft, getRecordDraftIdentity, newRecordId } from '../services/recordDraftIdentity';
 
 import { addToQueue } from "../services/offlineQueue";
 import { syncPendingRegistros } from "../services/syncRegistros";
@@ -22,6 +22,7 @@ export default function useSalvarRegistro() {
   }, []);
 
   useEffect(() => {
+    if (auth?.currentUser?.uid) getRecordDraftIdentity(auth.currentUser.uid).catch(() => {});
     const notify = (n) => {
       toast.show(`${n} registro(s) enviados para o servidor.`, { tone: "success" });
       DeviceEventEmitter.emit("registros:changed");
@@ -44,24 +45,27 @@ export default function useSalvarRegistro() {
       }
 
       setSaving(true);
-      const recordId = nanoid();
       const now = new Date().toISOString();
 
       const registroData = {
-        recordId,
-        uid: user.uid,
         tipoVitima,
         ...comum,
+        uid: user.uid,
+        lifecycleVersion: 2,
         detalhes,
         status: "pending",
         retryCount: 0,
         lastError: null,
-        createdAt: comum.dataRegistro || now,
+        localRevision: newRecordId(),
         updatedAtLocal: now,
       };
 
       try {
+        const identity = await getRecordDraftIdentity(user.uid);
+        registroData.recordId = identity.id;
+        registroData.createdAt = identity.createdAt;
         await addToQueue(registroData);
+        await completeRecordDraft(user.uid, identity.id);
 
         toast.show("Registro salvo no aparelho. Será enviado quando houver internet.", { tone: "success" });
         DeviceEventEmitter.emit("registros:changed");

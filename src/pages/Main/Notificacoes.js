@@ -1,6 +1,7 @@
 // src/pages/Main/Notificacoes.js
-// Feed de "novos registros" pro coordenador — só aparece nesse papel (ver AppTabs.js).
-import React, { useEffect, useState } from "react";
+// Área administrativa existente. A futura interface da central entra aqui,
+// mantendo a autorização por perfil separada do conteúdo.
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { collection, doc, getDoc, onSnapshot, orderBy, query } from "firebase/firestore";
 import { Screen, ScreenHeader, ListGroup, ListRow, Badge, EmptyState, Text, useToast } from "../../ui";
@@ -14,11 +15,17 @@ import { generateRegistroPdf, savePdf } from "../../services/registroPdf";
 import PdfOptionsSheet from "./buscar/PdfOptionsSheet";
 import PdfViewerModal from "./buscar/PdfViewerModal";
 import logger from "../../utils/logger";
+import { canAccessCoordinatorArea } from '../../services/roleAccess';
 
 export default function Notificacoes() {
+  const { user, role } = useAuth();
+  if (!user?.uid || !canAccessCoordinatorArea(role)) return null;
+  return <CoordinatorNotifications key={user.uid} user={user} />;
+}
+
+function CoordinatorNotifications({ user }) {
   const { spacing } = useTheme();
   const toast = useToast();
-  const { user } = useAuth();
   useSpeakOnMount("Notificações. Novos registros enviados pelos ACS.");
 
   const [itens, setItens] = useState([]);
@@ -26,6 +33,7 @@ export default function Notificacoes() {
   const [selected, setSelected] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [pdf, setPdf] = useState(null);
+  const pendingPdf = useRef(null);
 
   useEffect(() => {
     if (!db || !user) {
@@ -74,8 +82,8 @@ export default function Notificacoes() {
     try {
       setGenerating(true);
       const result = await generateRegistroPdf(registro, opts);
+      pendingPdf.current = result;
       setSelected(null);
-      setPdf(result);
     } catch (error) {
       logger.warn("Notificacoes: erro ao gerar PDF:", error);
       toast.show("Não foi possível gerar o PDF.", { tone: "danger" });
@@ -88,7 +96,7 @@ export default function Notificacoes() {
     const current = pdf;
     try {
       const result = await savePdf(current);
-      setPdf(null);
+      if (result) setPdf(null);
       if (result === "saved") toast.show("PDF salvo no local escolhido.", { tone: "success" });
     } catch (error) {
       logger.error("Notificacoes: erro ao salvar/compartilhar PDF:", error);
@@ -97,7 +105,6 @@ export default function Notificacoes() {
     }
   };
 
-  const naoLidas = itens.filter((i) => !i.lida).length;
   const subtitle = loading ? undefined : `${itens.length} ${itens.length === 1 ? "registro" : "registros"}`;
 
   return (
@@ -134,7 +141,8 @@ export default function Notificacoes() {
         )}
       </View>
 
-      <PdfOptionsSheet registro={selected} generating={generating} onClose={() => setSelected(null)} onSelect={gerar} />
+      <PdfOptionsSheet registro={selected} generating={generating} onClose={() => setSelected(null)} onSelect={gerar}
+        onExited={() => { if (pendingPdf.current) { setPdf(pendingPdf.current); pendingPdf.current = null; } }} />
 
       <PdfViewerModal
         pdf={pdf}

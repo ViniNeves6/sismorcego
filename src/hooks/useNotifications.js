@@ -1,21 +1,29 @@
-// src/hooks/useNotifications.js
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { AppState, DeviceEventEmitter } from 'react-native';
+import notifee, { AuthorizationStatus } from '@notifee/react-native';
+import useAuth from './useAuth';
+import { notificationsAllowed, setNotificationsAllowed } from '../services/notificationPreferences';
 
-// Preferência de notificações (estado local por enquanto).
-// A tela mostra o feedback; aqui só guardamos o valor.
-export default function useNotifications() {
-  const [enabled, setEnabled] = useState(true);
-
-  const toggleNotifications = (next) => {
-    setEnabled((prev) => (typeof next === 'boolean' ? next : !prev));
-
-    // integração futura com Firebase/OneSignal:
-    // if (enabled) messaging().unsubscribeFromTopic('all');
-    // else messaging().subscribeToTopic('all');
+export default function useNotifications({ enabled: dataEnabled = true } = {}) {
+  const { user } = useAuth();
+  const [enabled, setEnabled] = useState(false);
+  const refresh = useCallback(async () => {
+    if (!dataEnabled) return;
+    const settings = await notifee.getNotificationSettings();
+    setEnabled(await notificationsAllowed(user?.uid) && settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED);
+  }, [dataEnabled, user?.uid]);
+  useEffect(() => {
+    if (!dataEnabled) return;
+    refresh().catch(() => setEnabled(false));
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') refresh().catch(() => setEnabled(false)); });
+    const changed = DeviceEventEmitter.addListener('notifications:changed', () => refresh().catch(() => setEnabled(false)));
+    return () => { listener.remove(); changed.remove(); };
+  }, [dataEnabled, refresh]);
+  const toggleNotifications = async next => {
+    if (!dataEnabled) return;
+    const value = typeof next === 'boolean' ? next : !enabled;
+    await setNotificationsAllowed(value);
+    setEnabled(value);
   };
-
-  return {
-    notificationsEnabled: enabled,
-    toggleNotifications,
-  };
+  return { notificationsEnabled: dataEnabled && enabled, toggleNotifications };
 }

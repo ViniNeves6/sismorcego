@@ -1,49 +1,199 @@
 rules_version = '2';
+// Protótipo de homologação Spark. Publicar somente após revisão/aprovação.
+// usuarios/{uid}: email privado, role acs/coordenador imutável pelo cliente.
+// registros/{uid}/itens/{id}: identidade/criação imutáveis, revisão int,
+// lastMutationId/lastAuditId string, dados clínicos limitados, sem delete.
+// alteracoes: before/after vinculados à revisão atômica; eventos imutáveis.
+// leiturasOcorrencias: uidAcs,registroId,lida bool,updatedAt timestamp.
+// notificacoes: feed legado, atualização apenas de lida pelo destinatário.
+// duvidas: autor/criação imutáveis; coordenador responde e publica.
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    // ACS e coordenador têm a mesma autoridade de alteração: apenas o autor
+    // original. Supervisão de terceiros concede leitura, nunca escrita.
+    function originalRecordOwner(uid) {
+      return owner(uid) && resource.data.get('uid',uid) == request.auth.uid;
     }
-
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+    function originalAuthorshipUnchanged() {
+      return request.resource.data.get('nomeAcs',null) == resource.data.get('nomeAcs',null)
+        && request.resource.data.get('notificadorTipo',null) == resource.data.get('notificadorTipo',null);
     }
-
-    // Coordenador: usuarios/{uid}.role == "coordenador"
-    function isCoordenador() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/usuarios/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == "coordenador";
+    function coordinator() {
+      return signedIn() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == 'coordenador';
     }
-
-    // Perfil do usuário (papel: "acs" | "coordenador").
-    // Cadastro sempre cria como "acs"; ninguém troca o próprio papel pelo app.
+    function str(v,n) { return v is string && v.size() <= n; }
+    function optionalStr(v,n) { return v == null || str(v,n); }
+    function date(v) { return v is timestamp || str(v,80); }
+    function scalar(input) {
+      let v = input;
+      return v == null || (v is string && v.size() <= 2000);
+    }
+    function validAge(v) { return v == null || (v is int && v >= 0 && v <= 150); }
+    function validDetails(input,type) {
+      let d = input;
+      return d == null || (d is map && (type == 'humano' ?
+        d.keys().hasOnly(['nomeAgredido','apelido','idade','sexo','ocupacaoProfissao','circunstancia',
+          'circunstanciaPraiaQual','circunstanciaOutraDescricao','buscouAtendimento',
+          'naoBuscouMotivo','abrigoMorcego','abrigoTipo','abrigoDescricao'])
+          && scalar(d.get('nomeAgredido',null)) && scalar(d.get('apelido',null))
+          && validAge(d.get('idade',null)) && scalar(d.get('sexo',null))
+          && scalar(d.get('ocupacaoProfissao',null)) && scalar(d.get('circunstancia',null))
+          && scalar(d.get('circunstanciaPraiaQual',null)) && scalar(d.get('circunstanciaOutraDescricao',null))
+          && scalar(d.get('buscouAtendimento',null)) && scalar(d.get('naoBuscouMotivo',null))
+          && scalar(d.get('abrigoMorcego',null)) && scalar(d.get('abrigoTipo',null)) && scalar(d.get('abrigoDescricao',null))
+        : d.keys().hasOnly(['especie','circunstancia','circunstanciaDescricao','participouVacinacao',
+          'naoParticipouMotivo','naoParticipouDescricao','avisouMunicipio','naoAvisouMotivo',
+          'naoAvisouDescricao','avisouAdeparaOuMunicipio'])
+          && scalar(d.get('especie',null)) && scalar(d.get('circunstancia',null))
+          && scalar(d.get('circunstanciaDescricao',null)) && scalar(d.get('participouVacinacao',null))
+          && scalar(d.get('naoParticipouMotivo',null)) && scalar(d.get('naoParticipouDescricao',null))
+          && scalar(d.get('avisouMunicipio',null)) && scalar(d.get('naoAvisouMotivo',null))
+          && scalar(d.get('naoAvisouDescricao',null)) && scalar(d.get('avisouAdeparaOuMunicipio',null))));
+    }
+    function validLocation(input) {
+      let l = input;
+      return l == null || (l is map && l.keys().hasOnly(['latitude','longitude','accuracy','isHighAccuracy','source'])
+        && l.latitude is number && l.latitude >= -90 && l.latitude <= 90
+        && l.longitude is number && l.longitude >= -180 && l.longitude <= 180
+        && (l.get('accuracy',null) == null || (l.accuracy is number && l.accuracy >= 0 && l.accuracy <= 1000000))
+        && l.isHighAccuracy is bool && optionalStr(l.get('source',null),80));
+    }
+    function validCancellation(input,uid) {
+      let c = input;
+      return c is map && c.keys().hasAll(['actorUid','reason','clientAt','serverAt'])
+        && c.keys().hasOnly(['actorUid','actorName','reason','clientAt','serverAt'])
+        && c.actorUid == uid && str(c.reason,2000) && c.reason.size() > 0
+        && c.reason.matches('(?s).*[^\\s].*') && optionalStr(c.get('actorName',null),200)
+        && date(c.clientAt) && c.serverAt == request.time;
+    }
+    function recordFields() {
+      return ['recordId','uid','tipoVitima','notificadorTipo','nomeAcs','dataRegistro','dataAgressao',
+        'municipio','localidade','detalhes','location','lifecycleStatus','cancellation',
+        'clientRevision','status','createdAt','updatedAt','serverReceivedAt',
+        'serverRevision','lastMutationId','lastAuditId'];
+    }
+    function validRecord(input,uid,id,previous) {
+      let d = input;
+      return d.keys().hasAll(['recordId','uid','tipoVitima','createdAt','dataRegistro','serverRevision',
+        'lastMutationId','lastAuditId','updatedAt','lifecycleStatus','cancellation'])
+        && d.uid == uid && d.recordId == id && str(id,200) && id.size() > 0
+        && d.tipoVitima in ['humano','caninoFelino','canino','aves','producao']
+        && optionalStr(d.get('notificadorTipo',null),120) && optionalStr(d.get('nomeAcs',null),200)
+        && optionalStr(d.get('municipio',null),200) && optionalStr(d.get('localidade',null),300)
+        && (d.get('dataAgressao',null) == null || date(d.dataAgressao))
+        && date(d.createdAt) && date(d.dataRegistro) && d.updatedAt == request.time
+        && d.serverRevision is int && d.serverRevision > 0 && d.serverRevision <= 1000000000
+        && str(d.lastMutationId,200) && d.lastMutationId.size() > 0 && !d.lastMutationId.matches('.*[/].*')
+        && d.lastMutationId == d.lastAuditId && d.clientRevision == d.lastMutationId && d.status == 'synced'
+        && ((previous != null && d.get('detalhes',null) == previous.get('detalhes',null) && d.tipoVitima == previous.get('tipoVitima',null)) || validDetails(d.get('detalhes',null),d.tipoVitima))
+        && ((previous != null && d.get('location',null) == previous.get('location',null)) || validLocation(d.get('location',null)))
+        && ((d.lifecycleStatus == 'active' && d.cancellation == null)
+          || (d.lifecycleStatus == 'cancelled' && validCancellation(d.cancellation,uid)));
+    }
+    function snapshot(input) {
+      let d = input;
+      return {'tipoVitima':d.get('tipoVitima',null),'notificadorTipo':d.get('notificadorTipo',null),
+        'nomeAcs':d.get('nomeAcs',null),'dataAgressao':d.get('dataAgressao',null),
+        'municipio':d.get('municipio',null),'localidade':d.get('localidade',null),
+        'detalhes':d.get('detalhes',null),'location':d.get('location',null),
+        'lifecycleStatus':d.get('lifecycleStatus','active'),'cancellation':d.get('cancellation',null)};
+    }
+    function auditMatches(uid,id,d) {
+      let p = /databases/$(database)/documents/registros/$(uid)/itens/$(id)/alteracoes/$(d.lastAuditId);
+      // validAudit valida o evento novo e sua relação com o pai. Evita
+      // repetir snapshots e ultrapassar o limite de expressões em cancelamentos.
+      return !exists(p) && getAfter(p).data.mutationId == d.lastMutationId;
+    }
+    function validUser(d) { return d.role in ['acs','coordenador'] && optionalStr(d.get('email',null),320); }
     match /usuarios/{uid} {
-      allow read: if isOwner(uid) || isCoordenador();
-      allow create: if isOwner(uid) && request.resource.data.role == "acs";
-      allow update: if isOwner(uid) && request.resource.data.role == resource.data.role;
+      allow read: if owner(uid);
+      allow create: if owner(uid) && validUser(request.resource.data)
+        && request.resource.data.keys().hasOnly(['email','role']) && request.resource.data.role == 'acs';
+      allow update: if owner(uid) && validUser(request.resource.data)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email']);
     }
-
-    // Registros: cada ACS só cria/edita os próprios; coordenador lê os de
-    // todos e também pode apagar qualquer um (moderação).
-    match /registros/{uid}/itens/{recordId} {
-      allow read: if isOwner(uid) || isCoordenador();
-      allow create, update: if isOwner(uid);
-      allow delete: if isOwner(uid) || isCoordenador();
+    match /registros/{uid}/itens/{id} {
+      allow read: if owner(uid) || coordinator();
+      allow create: if owner(uid) && validRecord(request.resource.data,uid,id,null)
+        && request.resource.data.keys().hasOnly(recordFields())
+        && request.resource.data.serverRevision == 1 && request.resource.data.serverReceivedAt == request.time
+        && auditMatches(uid,id,request.resource.data);
+      allow update: if originalRecordOwner(uid) && validRecord(request.resource.data,uid,id,resource.data)
+        && originalAuthorshipUnchanged()
+        && resource.data.get('lifecycleStatus','active') != 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(recordFields())
+        && request.resource.data.uid == resource.data.get('uid',uid)
+        && request.resource.data.recordId == resource.data.get('recordId',id)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.dataRegistro == resource.data.get('dataRegistro',request.resource.data.dataRegistro)
+        && request.resource.data.get('serverReceivedAt',null) == resource.data.get('serverReceivedAt',null)
+        && request.resource.data.serverRevision == resource.data.get('serverRevision',0) + 1
+        && auditMatches(uid,id,request.resource.data);
+      // Não há delete de ocorrências nem update/delete de eventos.
+      match /alteracoes/{eventId} {
+        function validAudit(a) {
+          let parent = /databases/$(database)/documents/registros/$(uid)/itens/$(id);
+          let after = getAfter(parent).data;
+          return a.keys().hasAll(['actorUid','clientAt','receivedAt','revision','mutationId','action','before','after','localEventsJson'])
+            && a.keys().hasOnly(['actorUid','clientAt','receivedAt','revision','mutationId','action','before','after','localEventsJson'])
+            && a.actorUid == uid && a.actorUid == request.auth.uid && date(a.clientAt) && a.receivedAt == request.time
+            && a.revision is int && a.revision > 0 && a.mutationId == eventId
+            && str(a.localEventsJson,60000) && after.lastAuditId == eventId
+            && after.serverRevision == a.revision && after.lastMutationId == eventId
+            && after.updatedAt == request.time && a.after == snapshot(after)
+            && a.before == (exists(parent) ? snapshot(get(parent).data) : null)
+            && a.action == (after.lifecycleStatus == 'cancelled' ? 'cancel' : exists(parent) ? 'edit' : 'create')
+            && after.serverRevision == (exists(parent) ? get(parent).data.get('serverRevision',0) : 0) + 1;
+        }
+        allow read: if (owner(uid) || coordinator()) && exists(/databases/$(database)/documents/registros/$(uid)/itens/$(id));
+        allow create: if owner(uid) && validAudit(request.resource.data);
+      }
     }
-
-    // Mesma regra de leitura acima, mas pra consultas collectionGroup("itens")
-    // (usadas pelo coordenador em Buscar/Painel/Notificações) — o Firestore
-    // exige essa forma recursiva à parte, a regra de cima sozinha não cobre
-    // collectionGroup.
-    match /{path=**}/itens/{recordId} {
-      allow read: if isCoordenador();
+    // Collection-group utilizada pelo histórico/painel/central administrativa.
+    match /{path=**}/itens/{id} { allow read: if coordinator(); }
+    match /usuarios/{uid}/leiturasOcorrencias/{stateId} {
+      function validReadState(d) {
+        return d.keys().hasAll(['uidAcs','registroId','lida','updatedAt'])
+          && d.keys().hasOnly(['uidAcs','registroId','lida','updatedAt'])
+          && str(d.uidAcs,128) && d.uidAcs.size() > 0 && !d.uidAcs.matches('.*[/:].*')
+          && str(d.registroId,200) && d.registroId.size() > 0 && !d.registroId.matches('.*[/:].*')
+          && stateId == d.uidAcs + ':' + d.registroId
+          && d.lida is bool && d.updatedAt == request.time
+          && exists(/databases/$(database)/documents/registros/$(d.uidAcs)/itens/$(d.registroId));
+      }
+      allow read: if owner(uid) && coordinator();
+      allow create: if owner(uid) && coordinator() && validReadState(request.resource.data);
+      allow update: if owner(uid) && coordinator() && validReadState(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lida','updatedAt']);
     }
-
-    // Feed de notificações do coordenador (gerado pelo próprio aparelho dele).
-    match /usuarios/{uid}/notificacoes/{notifId} {
-      allow read, write: if isOwner(uid);
+    match /usuarios/{uid}/notificacoes/{id} {
+      function validLegacyRead(d) { return d.lida is bool; }
+      allow read: if owner(uid) && coordinator();
+      allow update: if owner(uid) && coordinator() && validLegacyRead(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lida']);
     }
+    match /duvidas/{id} {
+      function validDoubt(d) {
+        return d.keys().hasAll(['userId','titulo','resposta','createdAt'])
+          && d.keys().hasOnly(['userId','titulo','resposta','createdAt','publicada','respondidaEm'])
+          && str(d.userId,128) && d.userId.size() > 0 && str(d.titulo,500) && d.titulo.size() >= 10
+          && optionalStr(d.resposta,5000) && d.createdAt is timestamp
+          && d.get('publicada',false) is bool
+          && (d.get('respondidaEm',null) == null || d.respondidaEm is timestamp);
+      }
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || coordinator() || resource.data.get('publicada',false) == true);
+      allow create: if signedIn() && validDoubt(request.resource.data)
+        && request.resource.data.userId == request.auth.uid && request.resource.data.resposta == null
+        && request.resource.data.get('publicada',false) == false && request.resource.data.get('respondidaEm',null) == null
+        && request.resource.data.createdAt == request.time;
+      allow update: if coordinator() && validDoubt(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resposta','publicada','respondidaEm'])
+        && request.resource.data.respondidaEm == request.time;
+      allow delete: if signedIn() && (resource.data.userId == request.auth.uid || coordinator());
+    }
+    // dispositivos permanece negado: FCM não é ativado nesta fase.
   }
 }

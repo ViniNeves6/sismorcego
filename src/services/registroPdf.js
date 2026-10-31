@@ -1,10 +1,13 @@
 // src/services/registroPdf.js
 // Geração, salvamento e compartilhamento da ficha em PDF (sem UI).
 // - PDF: RNHTMLtoPDF se disponível; fallback pdf-lib
-// - Baixar: SAF (react-native-blob-util) no Android; senão cache + Share
-import { Platform, Share } from "react-native";
+// - Baixar: seletor nativo de documentos no Android; compartilhar arquivo no iOS.
+import { NativeModules, Platform } from "react-native";
+import FileShare from 'react-native-share';
 import RNFS from "react-native-fs";
 import logger from "../utils/logger";
+import { parseRegistroDate } from './registroDate';
+import { buildFichaModel, buildFichaHtml, decorateFichaPdf, buildStyledFichaPdf } from './registroPdfLayout';
 import {
   CIRCUNSTANCIA_HUMANO,
   MOTIVO_NAO_BUSCOU,
@@ -31,7 +34,8 @@ try {
 
 let RNBlob;
 try {
-  RNBlob = require("react-native-blob-util");
+  const module = require("react-native-blob-util");
+  RNBlob = module.default || module;
 } catch (_e) {
   RNBlob = undefined;
 }
@@ -51,14 +55,6 @@ export const normalizeFileUri = (p) => {
   if (!p) return null;
   return p.startsWith("file://") ? p : `file://${p}`;
 };
-
-const escapeHtml = (v) =>
-  String(v ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 
 export const formatarSexo = (sexo) => {
   if (sexo === 1 || String(sexo).toUpperCase() === "M") return "Masculino";
@@ -90,8 +86,8 @@ export const formatarBool = (v) => {
 // dd/mm/aaaa, independente do idioma do aparelho.
 export const formatarDataCurta = (iso) => {
   if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso);
+  const d = parseRegistroDate(iso);
+  if (!d) return String(iso);
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   return `${day}/${month}/${d.getFullYear()}`;
@@ -106,70 +102,6 @@ export const safeFileName = (raw, prefix = "Ficha") => {
     .replace(/^_+|_+$/g, "");
   return `${prefix}_${base.slice(0, 40) || "registro"}`;
 };
-
-/* ========= Fallback JS com pdf-lib ========= */
-async function buildPdfWithPdfLib({ titulo, linhas, imageBase64 }) {
-  const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
-  const pdfDoc = await PDFDocument.create();
-
-  let page = pdfDoc.addPage([595, 842]); // A4
-  let height = page.getSize().height;
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  const marginX = 50;
-  const marginTop = 50;
-  const marginBottom = 60;
-  let y = height - marginTop;
-
-  const drawLine = (t, size = 12) => {
-    page.drawText(String(t), { x: marginX, y, size, font, color: rgb(0, 0, 0) });
-    y -= size + 4;
-    if (y < marginBottom) {
-      page = pdfDoc.addPage([595, 842]);
-      height = page.getSize().height;
-      y = height - marginTop;
-    }
-  };
-
-  drawLine(titulo || "Ficha Cadastral", 18);
-  y -= 10;
-
-  if (imageBase64) {
-    try {
-      const raw = String(imageBase64);
-      const withoutPrefix = raw.replace(/^data:image\/\w+;base64,/, "");
-
-      let bytes;
-      if (global.Buffer) {
-        bytes = global.Buffer.from(withoutPrefix, "base64");
-      } else if (typeof global.atob === "function") {
-        const bin = global.atob(withoutPrefix);
-        bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-      } else {
-        throw new Error("Base64 decode indisponível no ambiente atual.");
-      }
-
-      const img = /^data:image\/png/.test(raw) ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
-
-      const iw = 300;
-      const ih = (img.height / img.width) * iw;
-
-      if (y - ih < marginBottom) {
-        page = pdfDoc.addPage([595, 842]);
-        height = page.getSize().height;
-        y = height - marginTop;
-      }
-
-      page.drawImage(img, { x: marginX, y: y - ih, width: iw, height: ih });
-      y -= ih + 12;
-    } catch (e) {
-      logger.warn("Falha ao inserir imagem no PDF (fallback):", e);
-    }
-  }
-
-  (linhas || []).forEach((linha) => drawLine(linha, 12));
-  return pdfDoc.save();
-}
 
 /* ======================= Imagem ======================= */
 // Converte URI de imagem (file:// OU content://) para data:image/*;base64
@@ -216,12 +148,12 @@ async function resolveImage(registro) {
 // Registros antigos (sem tipoVitima) usam o formato legado direto; registros
 // novos ficam em registro.detalhes, conforme o tipo escolhido no cadastro.
 // Ver docs/superpowers/specs/2026-09-28-registro-por-tipo-vitima-design.md
-function buildCamposFicha(registro, { includeNames, includeLocation }) {
+export function buildCamposFicha(registro, { includeNames, includeLocation }) {
   const nomeNotificadorTxt = includeNames ? (registro?.nomeAcs ?? "-") : "[oculto]";
   const municipioTxt = registro?.municipio ?? "-";
   const localidadeTxt = registro?.localidade ?? "-";
-  const dataRegistroStr = formatarDataCurta(registro?.dataRegistro);
-  const dataMordeduraStr = formatarDataCurta(registro?.dataAgressao);
+  const dataRegistroStr = formatarDataCurta(registro?.dataRegistro ?? registro?.createdAt);
+  const dataMordeduraStr = formatarDataCurta(registro?.dataAgressao ?? registro?.dataMordedura);
   const latTxt = includeLocation
     ? String(registro?.location?.latitude ?? registro?.latitude ?? "-")
     : "[oculto]";
@@ -244,7 +176,7 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
     // Legado: campos antigos, exibidos como estão (sem tentar reclassificar).
     campos.push(
       { label: "Nome do agredido", value: includeNames ? (registro?.nomeAgredido ?? "-") : "[oculto]" },
-      { label: "Apelido", value: registro?.apelido ?? "-" },
+      { label: "Apelido", value: includeNames ? (registro?.apelido ?? "-") : "[oculto]" },
       { label: "Idade", value: registro?.idade ?? "-" },
       { label: "Sexo", value: formatarSexo(registro?.sexo) },
       { label: "Tratamento antirrábico", value: formatarTratamento(registro?.tratamentoAntirrabico) },
@@ -257,7 +189,7 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
   } else if (tipo === "humano") {
     campos.push(
       { label: "Nome do agredido", value: includeNames ? (d.nomeAgredido ?? "-") : "[oculto]" },
-      { label: "Apelido", value: d.apelido ?? "-" },
+      { label: "Apelido", value: includeNames ? (d.apelido ?? "-") : "[oculto]" },
       { label: "Idade", value: d.idade ?? "-" },
       { label: "Sexo", value: formatarSexo(d.sexo) },
       { label: "Ocupação/profissão", value: d.ocupacaoProfissao ?? "-" },
@@ -287,9 +219,9 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
       campos.push({
         label: "Motivo",
         value:
-          d.naoParticipouMotivo === "nao_sabe"
-            ? rotulo(MOTIVO_NAO_PARTICIPOU_CANINO_FELINO, "nao_sabe")
-            : d.naoParticipouDescricao ?? "-",
+          d.naoParticipouMotivo === "outro"
+            ? d.naoParticipouDescricao ?? "-"
+            : rotulo(MOTIVO_NAO_PARTICIPOU_CANINO_FELINO, d.naoParticipouMotivo),
       });
     }
     campos.push({ label: "Avisou o município?", value: formatarBool(d.avisouMunicipio) });
@@ -345,86 +277,61 @@ export async function generateRegistroPdf(registro, opts = {}) {
 
   const campos = buildCamposFicha(registro, { includeNames, includeLocation });
 
-  const imagemBase64 = await resolveImage(registro);
-  // Loga só o tamanho, nunca o conteúdo (evita crash e vazamento).
-  logger.log(imagemBase64 ? `📸 Imagem Base64 gerada: ${((imagemBase64.length * 0.75) / 1024).toFixed(2)} KB` : "📸 Sem imagem para o PDF");
-
-  const origem = registro?._origin === "cloud" ? "Nuvem" : "Local";
-  const recordId = registro?.recordId ?? registro?.id ?? "-";
-
-  // HTML com escape (não quebra o PDF e evita injeção de HTML).
-  const html = `
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          body { font-family: Arial, sans-serif; padding: 15px; }
-          h1 { text-align: center; margin-bottom: 10px; }
-          .meta { color: #555; font-size: 12px; text-align: center; margin-bottom: 14px; }
-          table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-          th, td { border: 1px solid #333; padding: 8px; text-align: left; font-size: 14px; vertical-align: top; }
-          th { background: #f0f0f0; width: 38%; }
-          img { width: 100%; height: 220px; margin: 10px 0 14px; display: block; object-fit: cover; border: 1px solid #ddd; }
-          .small { font-size: 12px; color: #666; }
-        </style>
-      </head>
-      <body>
-        <h1>Ficha Cadastral</h1>
-        <div class="meta">
-          <div><b>Origem:</b> ${escapeHtml(origem)}</div>
-          <div class="small"><b>Record ID:</b> ${escapeHtml(recordId)}</div>
-        </div>
-
-        ${imagemBase64 ? `<img src="${imagemBase64}" alt="Foto do registro" />` : '<p class="small">Sem foto</p>'}
-
-        <table>
-          ${campos.map((c) => `<tr><th>${escapeHtml(c.label)}</th><td>${escapeHtml(c.value)}</td></tr>`).join("\n")}
-        </table>
-      </body>
-    </html>
-  `;
-
-  const fileName = safeFileName(registro?.municipio, "Ficha");
-
-  // 1) RNHTMLtoPDF (preferência)
-  if (RNHTMLtoPDF && typeof RNHTMLtoPDF.convert === "function") {
-    const wantsBase64 = Platform.OS === "ios";
-    const { filePath, base64 } = await RNHTMLtoPDF.convert({
-      html,
-      fileName,
-      directory: "Caches", // cache, não permanente
-      base64: wantsBase64,
-    });
-
-    if (wantsBase64 && base64) return { path: null, base64 };
-    if (!filePath) throw new Error("Falha ao gerar PDF (sem filePath/base64)");
-
-    const candidatePath = normalizeFileUri(filePath);
-    if (!(await RNFS.exists(candidatePath.replace(/^file:\/\//, "")))) {
-      throw new Error("Arquivo PDF gerado não encontrado no cache.");
+  const imagemBase64 = opts.includePhoto === false || opts.photo === false ? null : await resolveImage(registro);
+  const model = buildFichaModel(registro, campos, imagemBase64);
+  const fileName = `${safeFileName(registro.municipio, "Sismorcego")}_${Date.now()}`;
+  const nativeGenerate = RNHTMLtoPDF?.generatePDF || RNHTMLtoPDF?.default?.generatePDF
+    || RNHTMLtoPDF?.convert || RNHTMLtoPDF?.default?.convert;
+  let pdfBytes;
+  if (typeof nativeGenerate === 'function') {
+    let nativePath;
+    try {
+      const html = buildFichaHtml(model, await loadPdfFontCss());
+      const result = await nativeGenerate({
+        html, fileName, width: 595, height: 842,
+        padding: 0, base64: false, shouldPrintBackgrounds: true,
+      });
+      nativePath = result.filePath?.replace(/^file:\/\//, '');
+      const base64 = result.base64 || await RNFS.readFile(nativePath, 'base64');
+      pdfBytes = await decorateFichaPdf(global.Buffer.from(base64, 'base64'));
+    } catch (error) {
+      logger.warn('PDF HTML indisponível; usando ficha vetorial.', error?.message);
+    } finally {
+      if (nativePath) {
+        try { await RNFS.unlink(nativePath); } catch { /* Limpeza do arquivo intermediário. */ }
+      }
     }
-    return { path: candidatePath, base64: null };
   }
-
-  // 2) Fallback pdf-lib
-  const linhas = [`Origem: ${origem}`, `Record ID: ${recordId}`, ...campos.map((c) => `${c.label}: ${c.value}`)];
-
-  const pdfBytes = await buildPdfWithPdfLib({ titulo: "Ficha Cadastral", linhas, imageBase64: imagemBase64 });
-
-  if (!global.Buffer) throw new Error("Buffer indisponível para salvar PDF em arquivo.");
-
-  const base64 = global.Buffer.from(pdfBytes).toString("base64");
-  const tempPdfPath = `${RNFS.CachesDirectoryPath}/Ficha_${Date.now()}.pdf`;
-  await RNFS.writeFile(tempPdfPath, base64, "base64");
-
+  if (!pdfBytes) pdfBytes = await buildStyledFichaPdf(model);
+  const base64 = global.Buffer.from(pdfBytes).toString('base64');
+  const tempPdfPath = `${RNFS.CachesDirectoryPath}/${fileName}.pdf`;
+  await RNFS.writeFile(tempPdfPath, base64, 'base64');
   return { path: normalizeFileUri(tempPdfPath), base64: null };
 }
 
+let pdfFontCss;
+async function loadPdfFontCss() {
+  if (pdfFontCss !== undefined) return pdfFontCss;
+  pdfFontCss = '';
+  if (Platform.OS !== 'android' || !RNFS.readFileAssets) return pdfFontCss;
+  try {
+    const [regular, bold] = await Promise.all([
+      RNFS.readFileAssets('fonts/PlusJakartaSans-Regular.ttf', 'base64'),
+      RNFS.readFileAssets('fonts/PlusJakartaSans-Bold.ttf', 'base64'),
+    ]);
+    pdfFontCss = `@font-face { font-family: Sismorcego; src: url(data:font/ttf;base64,${regular}); font-weight: 400; }
+      @font-face { font-family: Sismorcego; src: url(data:font/ttf;base64,${bold}); font-weight: 700; }`;
+  } catch { /* A ficha permanece legível com a fonte de sistema. */ }
+  return pdfFontCss;
+}
+
 export async function sharePdf(filePath) {
-  await Share.share({
+  return FileShare.open({
     url: normalizeFileUri(filePath),
-    message: "Ficha em PDF",
-    title: "Compartilhar PDF",
+    type: 'application/pdf',
+    title: 'Salvar ou compartilhar ficha',
+    filename: String(filePath).split('/').pop(),
+    failOnCancel: false,
   });
 }
 
@@ -438,24 +345,15 @@ const readAsBase64 = ({ path, base64 }) =>
 export async function savePdf({ path, base64 }) {
   if (!path && !base64) return null;
 
-  // 1) Android + SAF
-  if (Platform.OS === "android" && RNBlob && RNBlob.Android?.createDocument) {
-    const uri = await RNBlob.Android.createDocument(`Ficha_${Date.now()}.pdf`, "application/pdf");
-    await RNBlob.fs.writeFile(uri, await readAsBase64({ path, base64 }), "base64");
-    return "saved";
+  const fileName = path?.split('/').pop() || `Sismorcego_Ficha_${Date.now()}.pdf`;
+  let filePath = path?.replace(/^file:\/\//, '');
+  if (!filePath) {
+    filePath = `${RNFS.CachesDirectoryPath}/${fileName}`;
+    await RNFS.writeFile(filePath, await readAsBase64({ path, base64 }), 'base64');
   }
-
-  // 2) iOS, ou Android sem RNBlob: cache + share, apagando depois (sem PII em cache).
-  const tempPath = `${RNFS.CachesDirectoryPath}/Ficha_${Date.now()}.pdf`;
-  try {
-    await RNFS.writeFile(tempPath, await readAsBase64({ path, base64 }), "base64");
-    await sharePdf(tempPath);
-    return "shared";
-  } finally {
-    try {
-      if (await RNFS.exists(tempPath)) await RNFS.unlink(tempPath);
-    } catch (_e) {
-      // ok
-    }
+  if (Platform.OS === 'android' && NativeModules.SismorcegoDocuments?.savePdf) {
+    return NativeModules.SismorcegoDocuments.savePdf(filePath, fileName);
   }
+  const result = await sharePdf(filePath);
+  return result?.success === false ? null : 'shared';
 }

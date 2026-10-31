@@ -1,74 +1,58 @@
 // src/hooks/useCoordenadorNotifications.js
-// Só faz algo quando o papel logado é "coordenador": pede permissão de
-// notificação, registra a tarefa de checagem em segundo plano (alvo de
-// 1h, sem garantia — ver docs/superpowers/specs) e mantém o contador de
-// não lidas em tempo real pro badge da aba.
+// Permissão/canal e contador opcional. Alertas são gerados pelo servidor.
 import { useEffect, useState } from "react";
+import { DeviceEventEmitter } from 'react-native';
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import BackgroundFetch from "react-native-background-fetch";
 import notifee from "@notifee/react-native";
 import { db } from "../services/firebase";
 import { garantirCanalNotificacoes } from "../services/notificacaoLocal";
-import { executarChecagemNotificacoes } from "../services/checagemNotificacoes";
 import useAuth from "./useAuth";
 import logger from "../utils/logger";
+import { notificationsAllowed } from '../services/notificationPreferences';
+import { canAccessCoordinatorArea } from '../services/roleAccess';
+import { LOCAL_TEST_MODE } from '../services/debugTestSession';
+import { pushBackendEnabled } from '../services/pushDevices';
 
-export default function useCoordenadorNotifications() {
+export default function useCoordenadorNotifications({ trackUnread = true, enabled = true } = {}) {
   const { user, role } = useAuth();
   const [naoLidas, setNaoLidas] = useState(0);
-  const isCoordenador = role === "coordenador";
+  const isCoordenador = canAccessCoordinatorArea(role) && !LOCAL_TEST_MODE;
   const uid = user?.uid;
 
   // Contador de não lidas em tempo real.
   useEffect(() => {
-    if (!isCoordenador || !db || !uid) {
+    if (!enabled || !trackUnread || !isCoordenador || !db || !uid) {
       setNaoLidas(0);
       return;
     }
+    let active = true;
     const q = query(collection(db, "usuarios", uid, "notificacoes"), where("lida", "==", false));
     const unsub = onSnapshot(
       q,
-      (snap) => setNaoLidas(snap.size),
-      () => setNaoLidas(0)
+      (snap) => { if (active) setNaoLidas(snap.size); },
+      () => { if (active) setNaoLidas(0); }
     );
-    return () => unsub();
-  }, [isCoordenador, uid]);
+    return () => { active = false; unsub(); };
+  }, [enabled, isCoordenador, uid, trackUnread]);
 
-  // Permissão + canal + tarefa de segundo plano (registrada uma vez).
+  // Permissão + canal; não consulta ocorrências para gerar alertas no aparelho.
   useEffect(() => {
-    if (!isCoordenador || !uid) return;
-    let cancelled = false;
+    if (!enabled || !isCoordenador || !uid || !pushBackendEnabled()) return;
 
     (async () => {
       try {
-        await notifee.requestPermission();
-        await garantirCanalNotificacoes();
+        if (await notificationsAllowed(uid)) {
+          await notifee.requestPermission();
+          await garantirCanalNotificacoes();
+          DeviceEventEmitter.emit('notifications:changed');
+        }
       } catch (e) {
         logger.warn("useCoordenadorNotifications: permissão/canal falhou", e);
       }
-      if (cancelled) return;
 
-      try {
-        await BackgroundFetch.configure(
-          { minimumFetchInterval: 60, stopOnTerminate: false, startOnBoot: true, enableHeadless: true },
-          async (taskId) => {
-            await executarChecagemNotificacoes(uid);
-            BackgroundFetch.finish(taskId);
-          },
-          (taskId) => BackgroundFetch.finish(taskId)
-        );
-      } catch (e) {
-        logger.warn("useCoordenadorNotifications: configurar BackgroundFetch falhou", e);
-      }
-
-      // Checagem imediata: não espera a primeira hora pra dar o primeiro sinal.
-      executarChecagemNotificacoes(uid);
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [isCoordenador, uid]);
+  }, [enabled, isCoordenador, uid]);
 
-  return { naoLidas };
+  return { naoLidas: enabled && isCoordenador ? naoLidas : 0 };
 }

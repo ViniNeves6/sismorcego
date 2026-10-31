@@ -1,10 +1,11 @@
 // src/ui/Select.js
 // Seleção em folha inferior. options: [{ value, label }]
 import React, { useState } from 'react';
-import { Pressable, FlatList, StyleSheet } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeProvider';
 import Field, { useFieldBox } from './Field';
-import BottomSheet from './BottomSheet';
+import BottomSheetModal from './BottomSheetModal';
 import Text from './Text';
 import Icon from './Icon';
 
@@ -20,8 +21,10 @@ export default function Select({
   disabled = false,
   style,
 }) {
-  const { colors, spacing, touchTarget } = useTheme();
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+  const [sheetMounted, setSheetMounted] = useState(false);
   const box = useFieldBox({ error, focused: open, editable: !disabled });
 
   const selected = options.find((o) => o.value === value);
@@ -34,7 +37,7 @@ export default function Select({
   return (
     <Field label={label} hint={hint} error={error} style={style}>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={() => { setSheetMounted(true); setOpen(true); }}
         disabled={disabled}
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -49,41 +52,22 @@ export default function Select({
         <Icon name="chevron-down" size="md" color={colors.inkMuted} />
       </Pressable>
 
-      <BottomSheet visible={open} onClose={() => setOpen(false)} title={title ?? label ?? placeholder}>
-        <FlatList
-          data={options}
-          keyExtractor={(o) => String(o.value)}
-          renderItem={({ item }) => {
-            const isSelected = item.value === value;
-            return (
-              <Pressable
-                onPress={() => choose(item.value)}
-                accessibilityRole="button"
-                accessibilityLabel={item.label}
-                accessibilityState={{ selected: isSelected }}
-                android_ripple={{ color: colors.ripple }}
-                style={({ pressed }) => [
-                  styles.option,
-                  {
-                    minHeight: touchTarget + 4,
-                    paddingHorizontal: spacing.xl,
-                    gap: spacing.md,
-                    backgroundColor: isSelected || pressed ? colors.primarySoft : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  variant={isSelected ? 'bodyStrong' : 'body'}
-                  style={[styles.value, isSelected && { color: colors.onPrimarySoft }]}
-                >
-                  {item.label}
-                </Text>
-                {isSelected ? <Icon name="check" size="md" color={colors.onPrimarySoft} /> : null}
-              </Pressable>
-            );
-          }}
-        />
-      </BottomSheet>
+      {sheetMounted && (
+        <Modal transparent statusBarTranslucent navigationBarTranslucent visible animationType="none" onRequestClose={() => setOpen(false)}>
+          <View style={styles.sheetRoot}>
+            <BottomSheetModal
+              visible={open}
+              title={title ?? label ?? placeholder}
+              options={options}
+              selectedValue={value}
+              onSelect={option => choose(option.value)}
+              onClose={() => setOpen(false)}
+              onExited={() => setSheetMounted(false)}
+              bottomInset={insets.bottom}
+            />
+          </View>
+        </Modal>
+      )}
     </Field>
   );
 }
@@ -92,5 +76,5 @@ const styles = StyleSheet.create({
   value: { flex: 1 },
   between: { justifyContent: 'space-between' },
   disabled: { opacity: 0.6 },
-  option: { flexDirection: 'row', alignItems: 'center' },
+  sheetRoot: { flex: 1 },
 });

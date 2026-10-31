@@ -1,149 +1,69 @@
-// src/services/syncRegistros.js
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import NetInfo from "@react-native-community/netinfo";
-import { loadQueue, updateQueueItem, removeFromQueue } from "./offlineQueue";
-import { db, auth } from "../services/firebase";
+import { DeviceEventEmitter } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { loadQueue, updateQueueItemIfRevision } from './offlineQueue';
+import { db, auth } from './firebase';
+import { writeRecordTransaction } from './recordSyncProtocol';
+import { LOCAL_TEST_MODE } from './debugTestSession';
+import { recordIdentity } from './recordLifecycle';
+import { withRecordLock } from './recordDraftIdentity';
 
 let syncing = false;
+let syncRequested = false;
 
-/**
- * Remove campos que NÃO devem subir para o servidor
- * e padroniza timestamps do Firestore.
- */
-  function buildCloudPayload(registro, uid) {
-    if (!registro || !uid) return null;
-
-    return {
-      // Identificação
-      recordId: String(registro.recordId),
-      uid: uid,
-
-      // Tipo de vítima + dados comuns (ver docs/superpowers/specs/2026-09-28-registro-por-tipo-vitima-design.md)
-      tipoVitima: registro.tipoVitima ?? null,
-      notificadorTipo: registro.notificadorTipo ?? null,
-      nomeAcs: registro.nomeNotificador ?? registro.nomeAcs ?? null,
-      dataRegistro: registro.dataRegistro ?? null,
-      dataAgressao: registro.dataMordedura ?? registro.dataAgressao ?? null,
-      municipio: registro.municipio ?? null,
-      localidade: registro.localidade ?? null,
-
-      // Dados específicos do tipo de vítima
-      detalhes: registro.detalhes ?? null,
-
-      // Localização (somente o necessário)
-      location: registro.location
-        ? {
-            latitude: registro.location.latitude ?? null,
-            longitude: registro.location.longitude ?? null,
-            accuracy: registro.location.accuracy ?? null,
-            isHighAccuracy: !!registro.location.isHighAccuracy,
-            source: registro.location.source ?? null,
-          }
-        : null,
-
-      // Foto (somente o que for realmente usado no servidor)
-      photoBase64: registro.photoBase64 ?? null,
-      photoMime: registro.photoMime ?? null,
-      photoSize: registro.photoSize ?? null,
-
-      // Status controlado pela nuvem
-      status: "synced",
-
-      // Timestamps padronizados
-      createdAt: registro.createdAt ?? serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-  }
+export { buildCloudPayload } from './recordSyncProtocol';
+export const writeSyncedRecord = (registro, uid) => writeRecordTransaction(db, registro, uid);
 
 export async function syncPendingRegistros({ notify } = {}) {
-  if (syncing) return { synced: 0, skipped: true, reason: "already-syncing" };
+  if (LOCAL_TEST_MODE) return { synced: 0, reason: 'test-mode' };
+  if (syncing) { syncRequested = true; return { synced: 0, skipped: true, reason: 'already-syncing' }; }
   syncing = true;
-
   try {
-    const user = auth?.currentUser;
-    if (!user) return { synced: 0, reason: "no-user" };
-
-    if (!db) return { synced: 0, reason: "no-db" };
-
+    const uid = auth?.currentUser?.uid;
+    if (!uid) return { synced: 0, reason: 'no-user' };
+    if (!db) return { synced: 0, reason: 'no-db' };
     const net = await NetInfo.fetch();
-    const isOnline = !!(net.isConnected && net.isInternetReachable !== false);
-    if (!isOnline) return { synced: 0, reason: "offline" };
-
-    const queue = await loadQueue();
-    const pending = (Array.isArray(queue) ? queue : []).filter((r) => {
-      return r?.recordId && r?.status !== "synced";
-    });
-
-    if (pending.length === 0) return { synced: 0, reason: "empty" };
-
+    if (!net.isConnected || net.isInternetReachable === false) return { synced: 0, reason: 'offline' };
+    const pending = (await loadQueue({ uid })).filter(r => r.recordId && r.uid === uid && r.status !== 'synced');
+    if (!pending.length) return { synced: 0, reason: 'empty' };
     const okIds = [];
-    let syncedCount = 0;
-    let failedCount = 0;
-
+    let failed = 0;
     for (const registro of pending) {
-      const recordId = registro?.recordId;
-      if (!recordId) {
-        failedCount += 1;
-        continue;
-      }
-
+      if (auth.currentUser?.uid !== uid) break;
+      const revision = registro.localRevision || registro.updatedAtLocal;
       try {
-        // marca syncing no SQLite (fila)
-        try {
-          await updateQueueItem(recordId, {
-            status: "syncing",
-            lastError: null,
-            retryCount: registro?.retryCount || 0,
+        if (registro.syncAction === 'delete') throw new Error('Exclusão antiga bloqueada. Abra o registro e informe o motivo para convertê-la em cancelamento.');
+        const claimed = await withRecordLock(recordIdentity(registro), () => updateQueueItemIfRevision(registro.recordId, revision,
+          { status: 'syncing', serverWriteAttempted: true, lastError: null }, { uid }));
+        if (!claimed) continue;
+        const receipt = await writeSyncedRecord(registro, uid);
+        // Cópia criptografada dos enviados para consulta offline.
+        const updated = await updateQueueItemIfRevision(registro.recordId, revision, { ...receipt, baseServerRevision: receipt.serverRevision, status: 'synced', hasServerCopy: true, syncConflict: null, auditEvents: [], lastError: null, retryCount: 0 }, { uid });
+        if (!updated) {
+          // Uma edição durante o envio ainda parte da revisão que acabamos de
+          // confirmar. Avança apenas a base, sem apagar campos/eventos novos.
+          await withRecordLock(recordIdentity(registro), async () => {
+            const latest = (await loadQueue({ uid })).find(item => String(item.recordId) === String(registro.recordId));
+            if (latest && Number(latest.baseServerRevision || 0) === Number(registro.baseServerRevision || 0)) {
+              await updateQueueItemIfRevision(latest.recordId, latest.localRevision, { baseServerRevision: receipt.serverRevision, serverRevision: receipt.serverRevision, hasServerCopy: true }, { uid });
+            }
           });
-        } catch (_e) {}
-
-        // registros/{uid}/itens/{recordId}
-        const ref = doc(db, "registros", user.uid, "itens", String(recordId));
-
-        const payload = buildCloudPayload(registro, user.uid);
-
-        await setDoc(ref, payload, { merge: true });
-
-        okIds.push(String(recordId));
-        syncedCount += 1;
+        }
+        okIds.push(String(registro.recordId));
       } catch (err) {
-        failedCount += 1;
-
-        try {
-          await updateQueueItem(recordId, {
-            status: "failed",
-            lastError: String(err?.message || err),
-            retryCount: (registro?.retryCount || 0) + 1,
-          });
-        } catch (_e) {}
+        failed += 1;
+        await updateQueueItemIfRevision(registro.recordId, revision, {
+          status: 'failed', lastError: String(err?.message || err), retryCount: (registro.retryCount || 0) + 1,
+          ...(err?.code === 'sync/conflict' ? { syncConflict: { serverRecord: err.serverRecord, observedAt: new Date().toISOString() } } : {}),
+        }, { uid });
       }
     }
-
-    if (okIds.length > 0) {
-      try {
-        await removeFromQueue(okIds);
-      } catch (_e) {}
-    }
-
-    if (typeof notify === "function" && okIds.length > 0) {
-      try {
-        notify(okIds.length);
-      } catch (_e) {}
-    }
-
-    return {
-      synced: syncedCount,
-      failed: failedCount,
-      attempted: pending.length,
-      okIds,
-    };
-  } catch (e) {
-    return {
-      synced: 0,
-      reason: "error",
-      error: String(e?.message || e),
-    };
+    if (okIds.length) notify?.(okIds.length);
+    DeviceEventEmitter.emit('registros:changed');
+    return { synced: okIds.length, failed, attempted: pending.length, okIds };
+  } catch (error) {
+    return { synced: 0, reason: 'error', error: String(error?.message || error) };
   } finally {
     syncing = false;
+    if (syncRequested) { syncRequested = false; syncPendingRegistros(); }
   }
 }

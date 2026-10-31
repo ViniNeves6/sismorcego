@@ -76,3 +76,13 @@ yarn-error.log
 
 # Leftover nested clone (not part of this repo)
 /sismorcego/
+
+# Logs transitórios do Firebase Emulator Suite (dados fictícios de teste)
+/firebase-debug.log
+/firebase-debug.*.log
+/firestore-debug.log
+/ui-debug.log
+/.firebase/
+
+# Pré-visualizações e arquivos temporários de conferência do PDF
+/tmp/pdfs/

@@ -6,7 +6,7 @@
 export const light = {
   mode: 'light',
   // Superfícies
-  canvas: '#F6F4FA',
+  canvas: '#FFFFFF',
   surface: '#FFFFFF',
   surfaceMuted: '#EFEBF6',
   line: '#E2DCEE',

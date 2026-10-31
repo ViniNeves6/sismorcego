@@ -2,7 +2,8 @@
 // Rótulo sempre visível (nunca só placeholder). Campos de senha ganham o botão
 // mostrar/ocultar sozinhos.
 import React, { useRef, useState } from 'react';
-import { TextInput, Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
+import { FontTextInput as TextInput } from './FontText';
 import { useTheme } from '../theme/ThemeProvider';
 import Field, { useFieldBox } from './Field';
 import Icon from './Icon';
@@ -38,6 +39,8 @@ export default function TextField({
         {leadingIcon ? <Icon name={leadingIcon} size="md" color={colors.inkMuted} /> : null}
 
         <TextInput
+          accessibilityScaleApplied
+          accessibilityColorsApplied
           ref={(node) => {
             innerRef.current = node;
             if (typeof ref === 'function') ref(node);

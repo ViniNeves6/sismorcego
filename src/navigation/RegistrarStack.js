@@ -9,18 +9,20 @@ import RegistroCaninoFelino from '../pages/Main/registro/RegistroCaninoFelino';
 import RegistroAves from '../pages/Main/registro/RegistroAves';
 import RegistroProducao from '../pages/Main/registro/RegistroProducao';
 import { useTheme } from '../theme/ThemeProvider';
+import useReduceMotion from '../ui/useReduceMotion';
 
 const Stack = createNativeStackNavigator();
 
 export default function RegistrarStack() {
   const { colors } = useTheme();
+  const reduceMotion = useReduceMotion();
 
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: colors.canvas },
-        animation: 'slide_from_right',
+        animation: reduceMotion ? 'none' : 'slide_from_right',
       }}
     >
       <Stack.Screen name="NovoRegistro" component={NovoRegistro} />

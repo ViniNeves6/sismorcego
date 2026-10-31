@@ -59,6 +59,7 @@ export function ToastProvider({ children }) {
       {children}
       {toast ? (
         <Animated.View
+          needsOffscreenAlphaCompositing
           pointerEvents="box-none"
           style={[
             styles.host,

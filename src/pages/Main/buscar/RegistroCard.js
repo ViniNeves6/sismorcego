@@ -4,6 +4,7 @@ import { View, StyleSheet } from "react-native";
 import { Card, Text, Badge, Icon, IconButton } from "../../../ui";
 import { useTheme } from "../../../theme/ThemeProvider";
 import { formatarDataCurta } from "../../../services/registroPdf";
+import { isCancelledRecord } from '../../../services/recordLifecycle';
 
 // status da fila: pending | syncing | failed | synced
 const STATUS = {
@@ -13,7 +14,8 @@ const STATUS = {
   pending: { label: "Pendente", tone: "warning", icon: "clock" },
 };
 
-export const statusOf = (registro) => STATUS[registro?.status] || STATUS.pending;
+export const statusOf = (registro) => isCancelledRecord(registro)
+  ? { label: 'Ocorrência cancelada', tone: 'neutral', icon: 'x-circle' } : STATUS[registro?.status] || STATUS.pending;
 
 // Resumo curto do "quem/o quê" foi mordido, por tipo de vítima.
 // Registros antigos (sem tipoVitima) mostram o nome direto, como sempre foi.
@@ -29,7 +31,7 @@ const resumoVitima = (registro) => {
   return "Registro";
 };
 
-function RegistroCard({ registro, onOpen, onDelete, isAdmin }) {
+function RegistroCard({ registro, onOpen, onDelete, isAdmin, canCancel = false }) {
   const { spacing, colors } = useTheme();
   const status = statusOf(registro);
   const municipio = registro.municipio || "Sem município";
@@ -55,8 +57,8 @@ function RegistroCard({ registro, onOpen, onDelete, isAdmin }) {
             </Text>
           </View>
           <View style={[styles.actions, { gap: spacing.xs }]}>
-            {isAdmin && onDelete ? (
-              <IconButton icon="trash-2" label="Excluir registro" tone="danger" onPress={() => onDelete(registro)} />
+            {canCancel && onDelete ? (
+              <IconButton icon="x-circle" label="Cancelar ocorrência" tone="danger" onPress={() => onDelete(registro)} />
             ) : null}
             <Icon name="file-text" size="md" color={colors.inkSubtle} />
           </View>

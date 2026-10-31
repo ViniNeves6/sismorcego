@@ -30,7 +30,7 @@ export const iconSize = {
 // Alvo mínimo de toque (iOS 44pt / Android 48dp)
 export const touchTarget = 48;
 
-// Tipografia: fonte do sistema, escala fixa.
+// Tipografia: Plus Jakarta Sans aplicada pelos componentes de texto; escala fixa.
 // lineHeight ≥ 1.4 × fontSize no corpo para leitura confortável.
 export const typography = {
   display: { fontSize: 30, lineHeight: 36, fontWeight: '700', letterSpacing: -0.5 },

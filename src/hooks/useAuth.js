@@ -1,7 +1,7 @@
-﻿// src/hooks/useAuth.js
-import React, { createContext, useContext, useEffect, useState } from "react";
+// src/hooks/useAuth.js
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
-// Dependências do Firebase (mantidas para quando o modo de teste for desativado)
+// Autenticação Firebase em produção; acesso local isolado em Debug.
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -12,28 +12,18 @@ import {
   updateEmail,
   updatePassword,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "../services/firebase";
 import logger from "../utils/logger";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import { LOCAL_TEST_MODE, LOCAL_TEST_USER, LOCAL_TEST_ROLE } from '../services/debugTestSession';
+import { isSharedPhotoUrl, saveLocalProfilePhoto, validateRegistration } from '../services/accountProfile';
+import { detachPushDevice } from '../services/pushDevices';
+import { ensureAccountRole } from '../services/accountBootstrap';
 
 // Busca o papel do usuário (usuarios/{uid}.role); cria o doc como "acs" se não existir.
-const ensureUserRole = async (uid, email) => {
-  if (!db || !uid) return "acs";
-  const ref = doc(db, "usuarios", uid);
-  const snap = await getDoc(ref);
-  if (snap.exists()) return snap.data()?.role || "acs";
-  await setDoc(ref, { email: email || null, role: "acs" }, { merge: true });
-  return "acs";
-};
-
-/**
- * 🔧 MODO DE TESTE (sem login, cadastro e recuperação)
- * - Quando TRUE, ignora qualquer integração real com Firebase Auth
- * - Retorna { user: null, loading: false } e mantém a API do contexto disponível
- * - Para reativar autenticação real depois, basta mudar para false
- */
-const AUTH_TEST_MODE = false;
+const ensureUserRole = (uid,email) => ensureAccountRole(db,uid,email);
 
 const AuthContext = createContext({
   user: null,
@@ -47,18 +37,15 @@ const AuthContext = createContext({
 });
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);      // usuário atual (ou null)
-  const [role, setRole] = useState(null);       // "acs" | "coordenador" | null
-  const [loading, setLoading] = useState(true); // estado de carregamento inicial
+  const registering = useRef(false);
+  const [user, setUser] = useState(LOCAL_TEST_MODE ? LOCAL_TEST_USER : null);      // usuário atual (ou null)
+  const [role, setRole] = useState(
+    LOCAL_TEST_MODE ? (LOCAL_TEST_ROLE || 'acs') : null
+  ); // "acs" | "coordenador" | null
+  const [loading, setLoading] = useState(!LOCAL_TEST_MODE); // estado de carregamento inicial
 
   useEffect(() => {
-    // Se estamos em modo de teste, não conectar no Firebase
-    if (AUTH_TEST_MODE) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
+    if (LOCAL_TEST_MODE) return undefined;
     // Se por algum motivo 'auth' não estiver configurado, não quebra a aplicação
     if (!auth) {
       logger.warn("useAuth: Firebase auth nao configurado");
@@ -68,24 +55,45 @@ export const AuthProvider = ({ children }) => {
     }
 
     // Modo normal (autenticação real)
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      // ✅ Login persistente funciona para todos os usuários,
-      // independente da verificação de email
-      setUser(currentUser || null);
-      if (currentUser) {
-        try {
-          setRole(await ensureUserRole(currentUser.uid, currentUser.email));
-        } catch (e) {
-          logger.warn("useAuth: falha ao carregar papel do usuário", e);
-          setRole("acs");
-        }
-      } else {
-        setRole(null);
-      }
+    let revision = 0;
+    let sessionUser = null;
+    const refreshRole = async (currentUser, request) => {
+      const cacheKey = `@sismorcego:${currentUser.uid}:role`;
+      const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
+      if (request !== revision) return;
+      setRole(cached === 'coordenador' ? 'coordenador' : 'acs');
+      // A sessão autenticada continua disponível sem conexão. O cache de papel
+      // só controla a navegação; as permissões da nuvem continuam nas regras.
       setLoading(false);
+      try {
+        const net = await NetInfo.fetch();
+        if (!net.isConnected || net.isInternetReachable === false) return;
+        const nextRole = await ensureUserRole(currentUser.uid, currentUser.email);
+        if (request !== revision) return;
+        setRole(nextRole);
+        await AsyncStorage.setItem(cacheKey, nextRole);
+      } catch (error) { logger.warn('useAuth: falha ao atualizar papel do usuário', error); }
+    };
+    const unsubscribe = onAuthStateChanged(auth, currentUser => {
+      const changedAccount = sessionUser?.uid !== currentUser?.uid;
+      sessionUser = currentUser;
+      const request = ++revision;
+      if (registering.current) return;
+      if (changedAccount) setRole(null);
+      setUser(currentUser || null);
+      if (currentUser) refreshRole(currentUser, request);
+      else {
+        setRole(null);
+        setLoading(false);
+      }
+    });
+    const networkListener = NetInfo.addEventListener(net => {
+      if (sessionUser && net.isConnected && net.isInternetReachable !== false) refreshRole(sessionUser, ++revision);
     });
 
     return () => {
+      revision += 1;
+      networkListener();
       try {
         unsubscribe && unsubscribe();
       } catch {
@@ -96,11 +104,7 @@ export const AuthProvider = ({ children }) => {
 
   // Helpers para evitar repetição
   const ensureAuthEnabled = () => {
-    if (AUTH_TEST_MODE) {
-      const err = new Error("Autenticação desativada para testes.");
-      err.code = "auth/test-mode-disabled";
-      throw err;
-    }
+    if (LOCAL_TEST_MODE) throw new Error('Modo de testes: autenticação Firebase desabilitada.');
     if (!auth) {
       const err = new Error("Firebase Auth não configurado.");
       err.code = "auth/not-configured";
@@ -119,10 +123,39 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Cadastro
-  const signUp = async (email, password) => {
+  const signUp = async (email, password, { name, photoUri } = {}) => {
     ensureAuthEnabled();
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await ensureUserRole(cred.user.uid, cred.user.email);
+    const errors = validateRegistration({ name, email, password, confirmPassword: password });
+    if (Object.keys(errors).length) throw new Error(Object.values(errors)[0]);
+    registering.current = true;
+    setLoading(true);
+    let createdUser;
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      createdUser = cred.user;
+      await updateProfile(cred.user, { displayName: name.trim() });
+      if (photoUri) await saveLocalProfilePhoto(cred.user.uid, photoUri);
+      await AsyncStorage.setItem(`@sismorcego:${cred.user.uid}:reporter`, name.trim());
+      const nextRole = await ensureUserRole(cred.user.uid, cred.user.email);
+      await AsyncStorage.setItem(`@sismorcego:${cred.user.uid}:role`, nextRole);
+      setUser({ ...cred.user, displayName: name.trim() });
+      setRole(nextRole);
+      return cred.user;
+    } catch (error) {
+      if (createdUser && auth.currentUser?.uid === createdUser.uid) {
+        // Auth e Firestore não formam uma transação. A conta já existe: abre a
+        // sessão recuperável, em vez de exigir um segundo cadastro do email.
+        setUser({ ...createdUser });
+        setRole('acs');
+        const incomplete = new Error('A conta foi criada. Complete seu nome em Minha conta; parte dos dados do perfil não pôde ser salva agora.');
+        incomplete.code = 'auth/profile-incomplete';
+        throw incomplete;
+      }
+      throw error;
+    } finally {
+      registering.current = false;
+      setLoading(false);
+    }
   };
 
   // Reset de senha
@@ -134,6 +167,7 @@ export const AuthProvider = ({ children }) => {
   // Logout
   const signOut = async () => {
     ensureAuthEnabled();
+    await detachPushDevice(auth.currentUser?.uid);
     await firebaseSignOut(auth);
   };
 
@@ -141,9 +175,10 @@ export const AuthProvider = ({ children }) => {
   const updateUser = async ({ nome, email, senha, foto }) => {
     ensureAuthEnabled();
     if (!auth.currentUser) throw new Error("Nenhum usuário logado.");
+    if (foto && !isSharedPhotoUrl(foto)) throw new Error('A foto local deve ser salva no aparelho até a integração com Storage estar disponível.');
 
     try {
-      if (nome || foto) {
+      if (nome !== undefined || foto !== undefined) {
         await updateProfile(auth.currentUser, {
           displayName: nome ?? auth.currentUser.displayName,
           photoURL: foto ?? auth.currentUser.photoURL,
@@ -174,43 +209,14 @@ export const AuthProvider = ({ children }) => {
 
       // Atualiza estado local com o usuário atualizado
       setUser({ ...auth.currentUser });
+      if (nome !== undefined) await AsyncStorage.setItem(`@sismorcego:${auth.currentUser.uid}:reporter`, nome.trim());
     } catch (error) {
       logger.error("useAuth: updateUser failed", error);
       throw error;
     }
   };
 
-  // Quando em modo de teste, garantimos loading=false desde o início
-  const contextValue = AUTH_TEST_MODE
-    ? {
-        user: null,
-        loading: false,
-        // Mantém a API para não quebrar telas que importam as funções:
-        signIn: async () => {
-          const err = new Error("Autenticação desativada para testes.");
-          err.code = "auth/test-mode-disabled";
-          throw err;
-        },
-        signUp: async () => {
-          const err = new Error("Autenticação desativada para testes.");
-          err.code = "auth/test-mode-disabled";
-          throw err;
-        },
-        resetPassword: async () => {
-          const err = new Error("Autenticação desativada para testes.");
-          err.code = "auth/test-mode-disabled";
-          throw err;
-        },
-        signOut: async () => {
-          // no-op em modo teste
-        },
-        updateUser: async () => {
-          const err = new Error("Autenticação desativada para testes.");
-          err.code = "auth/test-mode-disabled";
-          throw err;
-        },
-      }
-    : { user, role, loading, signIn, signUp, resetPassword, signOut, updateUser };
+  const contextValue = { user, role, loading, signIn, signUp, resetPassword, signOut, updateUser };
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };

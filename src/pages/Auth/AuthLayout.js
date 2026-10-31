@@ -2,26 +2,29 @@
 // O momento de identidade do app: topo em violeta profundo com o morcego da
 // marca sangrando pela borda, e o formulário numa folha que sobe por cima.
 import React from 'react';
-import { View, ScrollView, Image, StatusBar, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { View, Image, StatusBar, StyleSheet } from 'react-native';
+import KeyboardScrollView from '../../ui/KeyboardScrollView';
+import LinearGradient from '../../ui/AccessibleLinearGradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, IconButton } from '../../ui';
 import { useTheme } from '../../theme/ThemeProvider';
+import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 
 const SHEET_OVERLAP = 28;
 
-export default function AuthLayout({ title, subtitle, onBack, children }) {
+export default function AuthLayout({ title, subtitle, onBack, children, scrollRef }) {
+  useSpeakOnMount(`${title}. ${subtitle || ''}`);
   const { colors, spacing, radius, isHighContrast } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.fill, { backgroundColor: colors.canvas }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <ScrollView
+      <KeyboardScrollView
+        ref={scrollRef}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -94,8 +97,8 @@ export default function AuthLayout({ title, subtitle, onBack, children }) {
 
           {children}
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </View>
   );
 }
 

@@ -14,6 +14,7 @@ import { Icon } from '../ui';
 import { useTheme } from '../theme/ThemeProvider';
 import useAuth from '../hooks/useAuth';
 import useCoordenadorNotifications from '../hooks/useCoordenadorNotifications';
+import { canAccessCoordinatorArea } from '../services/roleAccess';
 
 const Tab = createBottomTabNavigator();
 
@@ -24,7 +25,7 @@ export default function AppTabs() {
   const insets = useSafeAreaInsets();
   const { role } = useAuth();
   const { naoLidas } = useCoordenadorNotifications();
-  const isCoordenador = role === 'coordenador';
+  const isCoordenador = canAccessCoordinatorArea(role);
 
   return (
     <Tab.Navigator

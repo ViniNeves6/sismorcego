@@ -12,21 +12,22 @@ export default function useHistoricoRegistros() {
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const latest = useRef(0);
 
   const reload = useCallback(async () => {
     const id = ++latest.current;
-    const data = await carregarHistorico(role);
-    // Ignora respostas antigas se outra recarga começou depois.
-    if (id !== latest.current) return;
-    setRegistros(data);
-    setLoading(false);
+    setError(null);
+    try {
+      const data = await carregarHistorico(role, { onCloudError: cause => { if (id === latest.current) setError(cause); } });
+      if (id === latest.current) setRegistros(data);
+    } catch (cause) { if (id === latest.current) setError(cause); }
+    finally { if (id === latest.current) setLoading(false); }
   }, [role]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await reload();
-    setRefreshing(false);
+    try { await reload(); } finally { setRefreshing(false); }
   }, [reload]);
 
   useFocusEffect(
@@ -40,5 +41,5 @@ export default function useHistoricoRegistros() {
     return () => sub.remove();
   }, [reload]);
 
-  return { registros, loading, refreshing, refresh };
+  return { registros, loading, refreshing, refresh, error };
 }

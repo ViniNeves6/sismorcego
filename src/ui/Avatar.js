@@ -1,5 +1,5 @@
 // src/ui/Avatar.js
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import Text from './Text';
@@ -14,6 +14,7 @@ function initialsOf(name = '') {
 export default function Avatar({ uri, source, name, size = 56, style }) {
   const { colors } = useTheme();
   const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [uri, source]);
   const box = { width: size, height: size, borderRadius: size / 2 };
 
   const imageSource = source ?? (uri ? { uri } : null);

@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { Text as RNText } from 'react-native';
+import { Image, Modal, Text as RNText } from 'react-native';
 
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
@@ -33,10 +33,12 @@ jest.mock('../src/hooks/useAuth', () => ({
 import { AccessibilityProvider } from '../src/hooks/useAccessibility';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { palettes } from '../src/theme/palettes';
-import { Button, TextField, Select, Badge, EmptyState, ListGroup, ListRow, ToastProvider } from '../src/ui';
+import { Avatar, Button, TextField, Select, Badge, EmptyState, ListGroup, ListRow, ToastProvider } from '../src/ui';
 import Login from '../src/pages/Auth/Login';
 import Cadastro from '../src/pages/Auth/Cadastro';
 import EsqueciSenha from '../src/pages/Auth/EsqueciSenha';
+import BottomSheetModal from '../src/ui/BottomSheetModal';
+import { Animated as SheetAnimated } from '../src/ui/AccessibleNative';
 
 const wrap = (ui) => (
   <AccessibilityProvider>
@@ -56,6 +58,19 @@ const render = async (ui) => {
 
 const texts = (tree) =>
   tree.root.findAllByType(RNText).map((n) => [].concat(n.props.children).join(''));
+
+test('the default profile avatar shows initials when no photo is selected', async () => {
+  const tree = await render(<Avatar name="Ana Lima" />);
+  expect(texts(tree)).toContain('AL');
+});
+
+test('an avatar falls back to initials for an unreadable photo and retries a newly selected image', async () => {
+  const tree = await render(<Avatar name="Ana Lima" uri="file:///missing.jpg" />);
+  await act(async () => tree.root.findByType(Image).props.onError());
+  expect(texts(tree)).toContain('AL');
+  await act(async () => tree.update(wrap(<Avatar name="Ana Lima" uri="file:///new.jpg" />)));
+  expect(tree.root.findByType(Image).props.source).toEqual({ uri: 'file:///new.jpg' });
+});
 
 describe('tema', () => {
   test('usa a paleta clara por padrão e expõe tokens', async () => {
@@ -117,6 +132,47 @@ describe('componentes', () => {
     expect(texts(tree)).toContain('Feminino');
   });
 
+  test.each(['option', 'android-back', 'close-button'])('Select keeps the shared sheet mounted through its exit after %s', async action => {
+    const transitions = [];
+    const timing = jest.spyOn(SheetAnimated, 'timing').mockImplementation((value, config) => {
+      let completion;
+      const transition = { config, stop: jest.fn(),
+        start(callback) { completion = callback; },
+        finish() { value.setValue(config.toValue); completion?.({ finished: true }); },
+      };
+      transitions.push(transition);
+      return transition;
+    });
+    const onChange = jest.fn();
+    let tree;
+    try {
+      tree = await render(<Select label="Sexo" value="M" onChange={onChange} options={[
+        { value: 'M', label: 'Masculino' }, { value: 'F', label: 'Feminino' },
+      ]} />);
+      const trigger = tree.root.findAll(node => node.props.accessibilityLabel === 'Sexo' && node.props.onPress)[0];
+      await act(async () => trigger.props.onPress());
+      expect(tree.root.findByType(BottomSheetModal).props.visible).toBe(true);
+      expect(transitions.at(-1).config).toMatchObject({ toValue: 1, duration: 260 });
+      await act(async () => transitions.at(-1).finish());
+
+      await act(async () => {
+        if (action === 'option') tree.root.findByType(BottomSheetModal).props.onSelect({ value: 'F', label: 'Feminino' });
+        else if (action === 'android-back') tree.root.findByType(Modal).props.onRequestClose();
+        else tree.root.findAll(node => node.props.accessibilityLabel === 'Fechar' && node.props.onPress)[0].props.onPress();
+      });
+      if (action === 'option') expect(onChange).toHaveBeenCalledWith('F');
+      else expect(onChange).not.toHaveBeenCalled();
+      expect(tree.root.findByType(BottomSheetModal).props.visible).toBe(false);
+      expect(tree.root.findAllByType(Modal)).toHaveLength(1);
+      expect(transitions.at(-1).config).toMatchObject({ toValue: 0, duration: 220 });
+      await act(async () => transitions.at(-1).finish());
+      expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+    } finally {
+      if (tree) await act(async () => tree.unmount());
+      timing.mockRestore();
+    }
+  });
+
   test('Badge, EmptyState e ListRow renderizam conteúdo', async () => {
     const onAction = jest.fn();
     const tree = await render(
@@ -155,7 +211,7 @@ describe('telas de autenticação', () => {
     await set('E-mail', 'a@b.com');
     await set('Senha', 'abc123');
     await set('Confirmar senha', 'abc124');
-    const submit = tree.root.findAllByProps({ accessibilityRole: 'button', accessibilityLabel: 'Criar conta' })[0];
+    const submit = tree.root.findAllByProps({ accessibilityRole: 'button', accessibilityLabel: 'Continuar' })[0];
     await act(async () => submit.props.onPress());
     expect(texts(tree)).toContain('As senhas não conferem.');
   });
@@ -165,3 +221,4 @@ describe('telas de autenticação', () => {
     expect(texts(tree)).toEqual(expect.arrayContaining(['Redefinir senha', 'Enviar link']));
   });
 });
+jest.mock('../src/services/deviceCapture', () => ({ pickRegistroPhoto: jest.fn() }));
