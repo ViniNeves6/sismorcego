@@ -1,9 +1,10 @@
 // src/pages/Main/NovoRegistro.js
-// Tela 1 da pilha "Registrar": dados comuns a qualquer tipo de vítima
-// (data, município, localidade, foto, geolocalização) + escolha do tipo,
-// que decide pra qual tela específica ir em seguida (ver RegistrarStack.js).
+// Tela 1 da pilha "Registrar": dados da notificação (notificador, data,
+// município/localidade e geolocalização da notificação) + escolha do tipo de
+// vítima, que decide pra qual tela específica ir em seguida — é lá que entram
+// os dados da mordedura em si (ver RegistrarStack.js).
 import React, { useEffect, useRef, useState } from "react";
-import { View, Image, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 
 import {
@@ -20,7 +21,6 @@ import {
 } from "../../ui";
 import { useTheme } from "../../theme/ThemeProvider";
 import useAuth from "../../hooks/useAuth";
-import usePhotoAttachment from "../../hooks/usePhotoAttachment";
 import useLocationCapture from "../../hooks/useLocationCapture";
 import useSpeakOnMount from "../../hooks/useSpeakOnMount";
 import { reverseGeocodeMunicipio } from "../../services/geocoding";
@@ -47,7 +47,6 @@ export default function NovoRegistro({ navigation, route }) {
   const [localidade, setLocalidade] = useState("");
   const [errors, setErrors] = useState({});
 
-  const { photo, hasPhoto, pick: pickPhoto, reset: resetPhoto } = usePhotoAttachment();
   const { location, region, capturing, capture: captureLocation, reset: resetLocation } = useLocationCapture();
 
   const notificadorTipo = role === "coordenador" ? "Coordenador" : "ACS";
@@ -62,7 +61,6 @@ export default function NovoRegistro({ navigation, route }) {
     setMunicipio("");
     setLocalidade("");
     setErrors({});
-    resetPhoto();
     resetLocation();
     navigation.setParams({ savedAt: undefined });
   }, [route.params?.savedAt]);
@@ -85,7 +83,7 @@ export default function NovoRegistro({ navigation, route }) {
   const validate = () => {
     const next = {};
     if (!nomeNotificador.trim()) next.nomeNotificador = "Informe o nome do notificador.";
-    if (!municipio.trim()) next.municipio = "Informe o município da mordedura.";
+    if (!municipio.trim()) next.municipio = "Informe o município da notificação.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -113,10 +111,6 @@ export default function NovoRegistro({ navigation, route }) {
             source: location.source || null,
           }
         : null,
-      photoBase64: photo.base64 || null,
-      photoMime: photo.mime || null,
-      photoSize: typeof photo.sizeBytes === "number" ? photo.sizeBytes : null,
-      photoUriLocal: photo.localUri || null,
     };
 
     navigation.navigate(ROTA_POR_TIPO[tipo], { comum });
@@ -142,9 +136,9 @@ export default function NovoRegistro({ navigation, route }) {
       </Section>
 
       <Section title="Ocorrência">
-        <DateField label="Data da mordedura" value={dataMordedura} onChange={setDataMordedura} maximumDate={new Date()} />
+        <DateField label="Data da notificação" value={dataMordedura} onChange={setDataMordedura} maximumDate={new Date()} />
         <TextField
-          label="Município da mordedura"
+          label="Município da notificação"
           value={municipio}
           onChangeText={setMunicipio}
           error={errors.municipio}
@@ -196,35 +190,14 @@ export default function NovoRegistro({ navigation, route }) {
         ) : null}
       </Section>
 
-      <Section title="Foto (opcional)">
-        <View style={[styles.row, { gap: spacing.md }]}>
-          <Button title="Câmera" icon="camera" variant="secondary" onPress={() => pickPhoto("camera")} style={styles.half} />
-          <Button title="Galeria" icon="image" variant="secondary" onPress={() => pickPhoto("gallery")} style={styles.half} />
-        </View>
-
-        {hasPhoto ? (
-          <Card>
-            <View style={{ gap: spacing.md }}>
-              {photo.previewUri ? (
-                <Image
-                  source={{ uri: photo.previewUri }}
-                  style={[styles.preview, { borderRadius: radius.md, backgroundColor: colors.surfaceMuted }]}
-                  accessibilityLabel="Pré-visualização da foto do registro"
-                />
-              ) : null}
-              <Button title="Remover foto" icon="trash-2" variant="ghost" onPress={resetPhoto} />
-            </View>
-          </Card>
-        ) : null}
-      </Section>
-
-      <Section title="Tipo de vítima" description="Escolha pra continuar — a próxima tela pede os dados específicos.">
+      <Section title="Dados da mordedura" description="Escolha pra continuar — a próxima tela pede os dados específicos.">
         <View style={{ gap: spacing.md }}>
           {TIPOS_VITIMA.map((tipo) => (
             <Button
               key={tipo.value}
               title={tipo.label}
               icon={tipo.icon}
+              iconFamily={tipo.iconFamily}
               onPress={() => irParaTipo(tipo.value)}
             />
           ))}
@@ -235,9 +208,6 @@ export default function NovoRegistro({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row" },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  half: { flex: 1 },
   map: { height: 160 },
-  preview: { width: "100%", aspectRatio: 4 / 3 },
 });

@@ -4,9 +4,9 @@
 
 export const TIPOS_VITIMA = [
   { value: "humano", label: "Humano", icon: "user" },
-  { value: "caninoFelino", label: "Canino / Felino", icon: "heart" },
+  { value: "caninoFelino", label: "Canino / Felino", icon: "paw", iconFamily: "MaterialCommunityIcons" },
   { value: "aves", label: "Aves", icon: "feather" },
-  { value: "producao", label: "Animal de produção", icon: "package" },
+  { value: "producao", label: "Animal de produção", icon: "cow", iconFamily: "MaterialCommunityIcons" },
 ];
 
 export const SIM_NAO = [

@@ -41,6 +41,7 @@ export default function Button({
   onPress,
   variant = 'primary',
   icon,
+  iconFamily,
   loading = false,
   disabled = false,
   accessibilityHint,
@@ -82,7 +83,7 @@ export default function Button({
               <ActivityIndicator color={fg} />
             ) : (
               <>
-                {icon ? <Icon name={icon} size="md" color={fg} /> : null}
+                {icon ? <Icon name={icon} family={iconFamily} size="md" color={fg} /> : null}
                 <Text variant="button" style={{ color: fg }}>
                   {title}
                 </Text>

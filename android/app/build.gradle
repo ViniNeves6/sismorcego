@@ -129,8 +129,10 @@ dependencies {
     }
 }
 
-// Fonte de ícones vetoriais (somente Feather, para não inflar o APK)
+// Fontes de ícones vetoriais (só as usadas, para não inflar o APK). Feather é
+// a família padrão; MaterialCommunityIcons só entra pelos ícones de animal
+// (cão/gato, boi) que o Feather não tem.
 project.ext.vectoricons = [
-    iconFontNames: ['Feather.ttf']
+    iconFontNames: ['Feather.ttf', 'MaterialCommunityIcons.ttf']
 ]
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")

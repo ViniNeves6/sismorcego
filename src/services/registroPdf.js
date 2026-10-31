@@ -232,10 +232,10 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
   const campos = [
     { label: "Nome do notificador", value: nomeNotificadorTxt },
     { label: "Data do registro", value: dataRegistroStr },
-    { label: "Data da mordedura", value: dataMordeduraStr },
-    { label: "Município", value: municipioTxt },
+    { label: "Data da notificação", value: dataMordeduraStr },
+    { label: "Município da notificação", value: municipioTxt },
   ];
-  if (registro?.localidade) campos.push({ label: "Localidade/comunidade", value: localidadeTxt });
+  if (registro?.localidade) campos.push({ label: "Localidade/comunidade da notificação", value: localidadeTxt });
 
   const tipo = registro?.tipoVitima;
   const d = registro?.detalhes || {};
@@ -261,6 +261,8 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
       { label: "Idade", value: d.idade ?? "-" },
       { label: "Sexo", value: formatarSexo(d.sexo) },
       { label: "Ocupação/profissão", value: d.ocupacaoProfissao ?? "-" },
+      { label: "Município da mordedura", value: d.municipioMordedura ?? "-" },
+      { label: "Localidade/comunidade da mordedura", value: d.localidadeMordedura ?? "-" },
       { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_HUMANO, d.circunstancia) }
     );
     if (d.circunstancia === "praia") campos.push({ label: "Qual praia?", value: d.circunstanciaPraiaQual ?? "-" });
@@ -278,6 +280,8 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
     }
   } else if (tipo === "caninoFelino") {
     campos.push(
+      { label: "Município da mordedura", value: d.municipioMordedura ?? "-" },
+      { label: "Localidade/comunidade da mordedura", value: d.localidadeMordedura ?? "-" },
       { label: "Espécie", value: rotulo(ESPECIE_CANINO_FELINO, d.especie) },
       { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_CANINO_FELINO, d.circunstancia) }
     );
@@ -299,6 +303,8 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
     }
   } else if (tipo === "aves") {
     campos.push(
+      { label: "Município da mordedura", value: d.municipioMordedura ?? "-" },
+      { label: "Localidade/comunidade da mordedura", value: d.localidadeMordedura ?? "-" },
       { label: "Espécie", value: rotulo(ESPECIE_AVES, d.especie) },
       { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_AVES, d.circunstancia) }
     );
@@ -310,6 +316,8 @@ function buildCamposFicha(registro, { includeNames, includeLocation }) {
     }
   } else if (tipo === "producao") {
     campos.push(
+      { label: "Município da mordedura", value: d.municipioMordedura ?? "-" },
+      { label: "Localidade/comunidade da mordedura", value: d.localidadeMordedura ?? "-" },
       { label: "Espécie", value: rotulo(ESPECIE_PRODUCAO, d.especie) },
       { label: "Circunstância", value: rotulo(CIRCUNSTANCIA_PRODUCAO, d.circunstancia) }
     );

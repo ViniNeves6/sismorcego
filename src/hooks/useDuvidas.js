@@ -1,16 +1,9 @@
 // src/hooks/useDuvidas.js
-// Dúvidas e respostas (Firestore, coleção "duvidas").
+// FAQ (Firestore, coleção "duvidas", somente leitura — o conteúdo é mantido
+// direto no console do Firebase, não pelo app).
 import { useCallback, useEffect, useState } from 'react';
-import {
-  collection,
-  addDoc,
-  getDocs,
-  getDocsFromServer,
-  query,
-  orderBy,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { db, auth } from '../services/firebase';
+import { collection, getDocs, getDocsFromServer, query, orderBy } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import logger from '../utils/logger';
 
 const normalize = (doc) => {
@@ -76,26 +69,5 @@ export default function useDuvidas() {
     reload();
   }, [reload]);
 
-  // Lança erro com `kind` para a tela decidir a mensagem.
-  const add = useCallback(
-    async (titulo) => {
-      if (!db) throw Object.assign(new Error('unavailable'), { kind: 'unavailable' });
-
-      try {
-        await addDoc(collection(db, 'duvidas'), {
-          titulo,
-          resposta: 'Dúvida registrada, resposta em breve.',
-          userId: auth?.currentUser?.uid || 'anon',
-          createdAt: serverTimestamp(),
-        });
-      } catch (err) {
-        logger.error('Duvidas: erro', err);
-        throw Object.assign(err, { kind: err?.code === 'permission-denied' ? 'permission' : 'generic' });
-      }
-      await reload();
-    },
-    [reload]
-  );
-
-  return { duvidas, loading, error, reload, add };
+  return { duvidas, loading, error, reload };
 }

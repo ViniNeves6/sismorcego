@@ -12,7 +12,7 @@ import {
   SIM_NAO,
 } from "./registroTypeOptions";
 
-const REQUIRED = ["especie", "circunstancia", "participouVacinacao", "avisouAdeparaOuMunicipio"];
+const REQUIRED = ["municipioMordedura", "especie", "circunstancia", "participouVacinacao", "avisouAdeparaOuMunicipio"];
 
 export default function RegistroProducao({ navigation, route }) {
   const { comum } = route.params;
@@ -21,6 +21,8 @@ export default function RegistroProducao({ navigation, route }) {
   useSpeakOnMount("Registro de mordedura em animal de produção.");
   const { salvar, saving } = useSalvarRegistro();
 
+  const [municipioMordedura, setMunicipioMordedura] = useState("");
+  const [localidadeMordedura, setLocalidadeMordedura] = useState("");
   const [especie, setEspecie] = useState("");
   const [circunstancia, setCircunstancia] = useState("");
   const [circunstanciaDescricao, setCircunstanciaDescricao] = useState("");
@@ -31,7 +33,7 @@ export default function RegistroProducao({ navigation, route }) {
   const [naoAvisouDescricao, setNaoAvisouDescricao] = useState("");
   const [errors, setErrors] = useState({});
 
-  const campos = { especie, circunstancia, participouVacinacao, avisouAdeparaOuMunicipio };
+  const campos = { municipioMordedura, especie, circunstancia, participouVacinacao, avisouAdeparaOuMunicipio };
 
   const validate = () => {
     const next = {};
@@ -49,6 +51,8 @@ export default function RegistroProducao({ navigation, route }) {
     }
 
     const detalhes = {
+      municipioMordedura: municipioMordedura.trim(),
+      localidadeMordedura: localidadeMordedura.trim() || null,
       especie,
       circunstancia,
       circunstanciaDescricao: circunstancia === "outro" ? circunstanciaDescricao.trim() || null : null,
@@ -74,6 +78,23 @@ export default function RegistroProducao({ navigation, route }) {
       }
       contentContainerStyle={{ gap: spacing.xl }}
     >
+      <Section title="Local da mordedura">
+        <TextField
+          label="Município da mordedura"
+          value={municipioMordedura}
+          onChangeText={setMunicipioMordedura}
+          error={errors.municipioMordedura}
+          placeholder="Ex.: Curuçá"
+          autoCapitalize="words"
+        />
+        <TextField
+          label="Localidade/comunidade da mordedura (opcional)"
+          value={localidadeMordedura}
+          onChangeText={setLocalidadeMordedura}
+          autoCapitalize="words"
+        />
+      </Section>
+
       <Section title="Animal">
         <Select label="Espécie" value={especie} onChange={setEspecie} options={ESPECIE_PRODUCAO} error={errors.especie} />
         <Select

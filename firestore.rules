@@ -45,5 +45,11 @@ service cloud.firestore {
     match /usuarios/{uid}/notificacoes/{notifId} {
       allow read, write: if isOwner(uid);
     }
+
+    // FAQ compartilhado, somente leitura — o conteúdo é mantido direto no
+    // console do Firebase, não pelo app (nenhum usuário cria/edita daqui).
+    match /duvidas/{duvidaId} {
+      allow read: if isSignedIn();
+    }
   }
 }

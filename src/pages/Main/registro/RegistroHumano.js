@@ -8,7 +8,15 @@ import useSalvarRegistro from "../../../hooks/useSalvarRegistro";
 import { SEXO } from "../registroOptions";
 import { CIRCUNSTANCIA_HUMANO, MOTIVO_NAO_BUSCOU, TIPO_ABRIGO_MORCEGO, SIM_NAO } from "./registroTypeOptions";
 
-const REQUIRED = ["nomeAgredido", "idade", "sexo", "ocupacaoProfissao", "circunstancia", "buscouAtendimento"];
+const REQUIRED = [
+  "nomeAgredido",
+  "idade",
+  "sexo",
+  "ocupacaoProfissao",
+  "municipioMordedura",
+  "circunstancia",
+  "buscouAtendimento",
+];
 
 export default function RegistroHumano({ navigation, route }) {
   const { comum } = route.params;
@@ -22,6 +30,8 @@ export default function RegistroHumano({ navigation, route }) {
   const [idade, setIdade] = useState("");
   const [sexo, setSexo] = useState("");
   const [ocupacaoProfissao, setOcupacaoProfissao] = useState("");
+  const [municipioMordedura, setMunicipioMordedura] = useState("");
+  const [localidadeMordedura, setLocalidadeMordedura] = useState("");
   const [circunstancia, setCircunstancia] = useState("");
   const [circunstanciaPraiaQual, setCircunstanciaPraiaQual] = useState("");
   const [circunstanciaOutraDescricao, setCircunstanciaOutraDescricao] = useState("");
@@ -32,7 +42,15 @@ export default function RegistroHumano({ navigation, route }) {
   const [abrigoDescricao, setAbrigoDescricao] = useState("");
   const [errors, setErrors] = useState({});
 
-  const campos = { nomeAgredido, idade, sexo, ocupacaoProfissao, circunstancia, buscouAtendimento };
+  const campos = {
+    nomeAgredido,
+    idade,
+    sexo,
+    ocupacaoProfissao,
+    municipioMordedura,
+    circunstancia,
+    buscouAtendimento,
+  };
 
   const validate = () => {
     const next = {};
@@ -55,6 +73,8 @@ export default function RegistroHumano({ navigation, route }) {
       idade: Number(idade) || null,
       sexo,
       ocupacaoProfissao: ocupacaoProfissao.trim(),
+      municipioMordedura: municipioMordedura.trim(),
+      localidadeMordedura: localidadeMordedura.trim() || null,
       circunstancia,
       circunstanciaPraiaQual: circunstancia === "praia" ? circunstanciaPraiaQual.trim() || null : null,
       circunstanciaOutraDescricao: circunstancia === "outro" ? circunstanciaOutraDescricao.trim() || null : null,
@@ -71,7 +91,7 @@ export default function RegistroHumano({ navigation, route }) {
 
   return (
     <ScrollScreen
-      header={<ScreenHeader title="Vítima humana" onBack={() => navigation.goBack()} />}
+      header={<ScreenHeader title="Humano" onBack={() => navigation.goBack()} />}
       footer={
         <FooterBar>
           <Button title="Salvar registro" icon="check" onPress={salvarRegistro} loading={saving} />
@@ -79,7 +99,7 @@ export default function RegistroHumano({ navigation, route }) {
       }
       contentContainerStyle={{ gap: spacing.xl }}
     >
-      <Section title="Pessoa agredida">
+      <Section title="Pessoa mordida">
         <TextField label="Nome" value={nomeAgredido} onChangeText={setNomeAgredido} error={errors.nomeAgredido} autoCapitalize="words" />
         <TextField label="Apelido (opcional)" value={apelido} onChangeText={setApelido} autoCapitalize="words" />
         <TextField
@@ -96,6 +116,23 @@ export default function RegistroHumano({ navigation, route }) {
           value={ocupacaoProfissao}
           onChangeText={setOcupacaoProfissao}
           error={errors.ocupacaoProfissao}
+        />
+      </Section>
+
+      <Section title="Local da mordedura">
+        <TextField
+          label="Município da mordedura"
+          value={municipioMordedura}
+          onChangeText={setMunicipioMordedura}
+          error={errors.municipioMordedura}
+          placeholder="Ex.: Curuçá"
+          autoCapitalize="words"
+        />
+        <TextField
+          label="Localidade/comunidade da mordedura (opcional)"
+          value={localidadeMordedura}
+          onChangeText={setLocalidadeMordedura}
+          autoCapitalize="words"
         />
       </Section>
 
