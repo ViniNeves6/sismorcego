@@ -29,7 +29,8 @@ const randomKeyString = () => {
   return CryptoJS.enc.Hex.stringify(words);
 };
 
-export const getLocalCryptoKey = async () => {
+let localKeyPromise;
+const loadLocalCryptoKey = async () => {
   try {
     const existing = await Keychain.getGenericPassword({ service: KEYCHAIN_SERVICE });
     if (existing?.username === KEYCHAIN_ACCOUNT && existing?.password) {
@@ -41,10 +42,12 @@ export const getLocalCryptoKey = async () => {
     return newKey;
   } catch (e) {
     logger.warn("⚠️ Keychain indisponível. Criptografia local pode falhar.", e);
-    // Fallback NÃO ideal: ainda retorna algo para não quebrar o app.
-    // Em produção, prefira bloquear insert/list se não conseguir obter chave.
-    return "INSECURE_FALLBACK_KEY__DO_NOT_USE_IN_PROD";
+    throw new Error('Não foi possível acessar a chave de proteção dos dados deste aparelho. Tente novamente.');
   }
+};
+export const getLocalCryptoKey = () => {
+  if (!localKeyPromise) localKeyPromise = loadLocalCryptoKey().catch(error => { localKeyPromise = null; throw error; });
+  return localKeyPromise;
 };
 
 export const encryptText = (plainText, key) => {
@@ -107,15 +110,12 @@ export const initDB = () => {
     "PRAGMA journal_mode = WAL;",
     [],
     () => {
-      // depois pode fazer os outros
-      db.transaction(
-        (tx) => {
-          tx.executeSql("PRAGMA foreign_keys = ON;");
-          tx.executeSql("PRAGMA synchronous = NORMAL;");
-        },
-        (err) => logger.warn("⚠️ SQLite: erro ao aplicar PRAGMAs", err),
-        () => logger.log("✅ SQLite: PRAGMAs aplicados")
-      );
+      // Estas opções não podem ser alteradas dentro de uma transação.
+      db.executeSql("PRAGMA foreign_keys = ON;", [], () => {
+        db.executeSql("PRAGMA synchronous = NORMAL;", [],
+          () => logger.log("✅ SQLite: PRAGMAs aplicados"),
+          err => logger.warn("SQLite: erro ao configurar sincronização", err));
+      }, err => logger.warn("SQLite: erro ao configurar chaves estrangeiras", err));
     },
     (err) => logger.warn("⚠️ SQLite: WAL não aplicado (ok continuar)", err)
   );

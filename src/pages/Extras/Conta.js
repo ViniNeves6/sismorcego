@@ -1,113 +1,149 @@
-﻿// src/pages/Extras/Conta.js
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, Alert, Text, DeviceEventEmitter } from 'react-native';
+// src/pages/Extras/Conta.js
+import React, { useEffect, useState } from 'react';
+import { DeviceEventEmitter, View, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Header from '../../components/Header/Header';
-import CustomInput from '../../components/Input/CustomInput';
-import CustomButton from '../../components/Button/CustomButton';
-import Profile from '../../components/Profile/Profile';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { ScrollScreen, ScreenHeader, Section, TextField, Button, FooterBar, Avatar, useToast } from '../../ui';
+import { useTheme } from '../../theme/ThemeProvider';
 import useAuth from '../../hooks/useAuth';
 import useAccessibility from '../../hooks/useAccessibility';
+import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 import logger from '../../utils/logger';
-import styles from './stylesConta';
+
+const EMAIL_RE = /\S+@\S+\.\S+/;
 
 export default function Conta() {
   const { user, updateUser } = useAuth();
-  const { fontScale, highContrast, textToSpeechEnabled, speak } = useAccessibility();
+  const { textToSpeechEnabled, speak } = useAccessibility();
+  const { spacing } = useTheme();
+  const toast = useToast();
+  useSpeakOnMount('Tela de conta. Você pode atualizar suas informações pessoais.');
 
   const [nome, setNome] = useState(user?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [senha, setSenha] = useState('');
   const [confirmaSenha, setConfirmaSenha] = useState('');
   const [foto, setFoto] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
-  // ðŸ“Œ Carregar foto local (ou do Firebase, se existir)
+  // Foto local (ou do Firebase, se existir).
   useEffect(() => {
-    const carregarFoto = async () => {
-      const saved = await AsyncStorage.getItem('profilePhoto');
-      if (saved) {
-        setFoto(saved);
-      } else if (user?.photoURL) {
-        setFoto(user.photoURL);
-      }
+    let active = true;
+    AsyncStorage.getItem('profilePhoto').then((saved) => {
+      if (!active) return;
+      if (saved) setFoto(saved);
+      else if (user?.photoURL) setFoto(user.photoURL);
+    });
+    return () => {
+      active = false;
     };
-    carregarFoto();
   }, [user]);
 
-  // ðŸ“Œ Salvar foto local sempre que mudar
-  useEffect(() => {
-    if (foto) {
-      AsyncStorage.setItem('profilePhoto', foto);
-      DeviceEventEmitter.emit('profilePhoto:changed', foto);
-    }
-  }, [foto]);
+  // A foto fica só no aparelho; avisa o resto do app quando muda.
+  const escolherFoto = (from) => {
+    const picker = from === 'camera' ? launchCamera : launchImageLibrary;
+    picker({ mediaType: 'photo', quality: 0.7, includeBase64: true }, (res) => {
+      const base64 = res?.assets?.[0]?.base64;
+      if (!base64) return;
+      const uri = `data:image/jpeg;base64,${base64}`;
+      setFoto(uri);
+      AsyncStorage.setItem('profilePhoto', uri).catch((e) => logger.error('Conta: erro ao salvar foto', e));
+      DeviceEventEmitter.emit('profilePhoto:changed', uri);
+    });
+  };
 
-  // Narrador ao abrir tela
-  useEffect(() => {
-    if (textToSpeechEnabled) {
-      speak('Tela de conta. VocÃª pode atualizar suas informaÃ§Ãµes pessoais.');
-    }
-  }, [textToSpeechEnabled, speak]);
+  const validate = () => {
+    const next = {};
+    if (!EMAIL_RE.test(email.trim())) next.email = 'Digite um e-mail válido.';
+    if (senha && senha.length < 6) next.senha = 'A senha precisa ter ao menos 6 caracteres.';
+    if (senha && senha !== confirmaSenha) next.confirmaSenha = 'As senhas não conferem.';
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const salvar = async () => {
-    if (senha && senha !== confirmaSenha) {
-      Alert.alert('Erro', 'As senhas nÃ£o conferem');
-      if (textToSpeechEnabled) speak('Erro. As senhas nÃ£o conferem.');
+    if (saving) return;
+    if (!validate()) {
+      if (textToSpeechEnabled) speak('Erro. Verifique os campos destacados.');
       return;
     }
+
     try {
-      // ðŸ”¥ Atualiza no Firebase
-      await updateUser({ nome, email, senha });
-
-      // ðŸ”¥ Foto fica apenas local
-      if (foto) {
-        await AsyncStorage.setItem('profilePhoto', foto);
-        DeviceEventEmitter.emit('profilePhoto:changed', foto);
-      }
-
-      Alert.alert('Sucesso', 'Dados atualizados!');
+      setSaving(true);
+      await updateUser({ nome, email: email.trim(), senha });
+      setSenha('');
+      setConfirmaSenha('');
+      toast.show('Dados atualizados.', { tone: 'success' });
       if (textToSpeechEnabled) speak('Seus dados foram atualizados com sucesso.');
     } catch (e) {
-      Alert.alert('Erro', e.message || 'NÃ£o foi possÃ­vel atualizar');
       logger.error('Conta: erro ao atualizar', e);
-      if (textToSpeechEnabled) speak(`Erro. ${e.message}`);
+      const message = e?.message || 'Não foi possível atualizar.';
+      toast.show(message, { tone: 'danger', duration: 6000 });
+      if (textToSpeechEnabled) speak(`Erro. ${message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <View style={[styles.page, highContrast && styles.pageHC]}>
-      <Header profilePhoto={foto} />
+    <ScrollScreen
+      header={<ScreenHeader title="Conta" />}
+      footer={
+        <FooterBar>
+          <Button title="Salvar alterações" icon="check" onPress={salvar} loading={saving} />
+        </FooterBar>
+      }
+      contentContainerStyle={{ gap: spacing.xl }}
+    >
+      <View style={[styles.photo, { gap: spacing.md }]}>
+        <Avatar uri={foto} name={nome || user?.email} size={96} />
+        <View style={[styles.row, { gap: spacing.md }]}>
+          <Button title="Galeria" icon="image" variant="secondary" onPress={() => escolherFoto('gallery')} style={styles.half} />
+          <Button title="Câmera" icon="camera" variant="secondary" onPress={() => escolherFoto('camera')} style={styles.half} />
+        </View>
+      </View>
 
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <Text
-          style={[
-            styles.titulo,
-            { fontSize: 22 * fontScale },
-            highContrast && styles.tituloHC,
-          ]}
-        >
-          Conta
-        </Text>
-
-        {/* Foto com botÃµes jÃ¡ embutidos */}
-        <Profile
-          image={foto}
-          onChange={setFoto}
-          defaultImage={require('../../assets/images/default-profile.png')}
+      <Section title="Dados pessoais">
+        <TextField label="Nome de usuário" value={nome} onChangeText={setNome} autoCapitalize="words" autoComplete="name" />
+        <TextField
+          label="E-mail"
+          value={email}
+          onChangeText={setEmail}
+          error={errors.email}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
         />
+      </Section>
 
-        <CustomInput label="Nome de UsuÃ¡rio" value={nome} onChangeText={setNome} />
-        <CustomInput label="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" />
-        <CustomInput label="Nova Senha" value={senha} onChangeText={setSenha} secureTextEntry />
-        <CustomInput label="Confirmar Senha" value={confirmaSenha} onChangeText={setConfirmaSenha} secureTextEntry />
-
-        <CustomButton title="ATUALIZAR" onPress={salvar} />
-      </ScrollView>
-    </View>
+      <Section title="Alterar senha" description="Deixe em branco para manter a senha atual.">
+        <TextField
+          label="Nova senha"
+          value={senha}
+          onChangeText={setSenha}
+          error={errors.senha}
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="new-password"
+        />
+        <TextField
+          label="Confirmar nova senha"
+          value={confirmaSenha}
+          onChangeText={setConfirmaSenha}
+          error={errors.confirmaSenha}
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="new-password"
+        />
+      </Section>
+    </ScrollScreen>
   );
 }
 
+const styles = StyleSheet.create({
+  photo: { alignItems: 'center' },
+  row: { flexDirection: 'row' },
+  half: { flex: 1 },
+});

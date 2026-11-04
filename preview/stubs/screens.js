@@ -1,0 +1,14 @@
+import { View } from 'react-native-web';
+export const enableScreens = () => {};
+export const enableFreeze = () => {};
+export const screensEnabled = () => false;
+export const Screen = View;
+export const ScreenContainer = View;
+export const ScreenStack = View;
+export const ScreenStackHeaderConfig = View;
+export const NativeScreen = View;
+export const NativeScreenContainer = View;
+export const FullWindowOverlay = View;
+export const SearchBar = View;
+export const useTransitionProgress = () => ({ progress: { value: 0 }, closing: { value: 0 }, goingForward: { value: 0 } });
+export default {};

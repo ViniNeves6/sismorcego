@@ -1,33 +1,36 @@
 // src/services/firebase.js
-// Inicialização segura do Firebase com fallback offline para testes.
-// Objetivo: não quebrar a aplicação quando o Firebase não estiver acessível/configurado.
+// Firebase real. Os registros offline são persistidos na fila SQLite criptografada.
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import {
   initializeFirestore,
-  persistentLocalCache,
-  // persistentMultipleTabManager, // não é necessário em React Native
+  memoryLocalCache,
   getFirestore,
+  connectFirestoreEmulator,
 } from "firebase/firestore";
 import {
   initializeAuth,
   getAuth,
   getReactNativePersistence,
+  connectAuthEmulator,
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import logger from '../utils/logger';
+import { USE_FIREBASE_EMULATORS } from './appEnvironment';
 
 // =====================
 // Configuração do Firebase
 // =====================
-const firebaseConfig = {
-  apiKey: "AIzaSyAvCZyQSpM8bQldkYTD_XpUwCte-sjWt0g",
-  authDomain: "sismorcego-d3603.firebaseapp.com",
-  projectId: "sismorcego-d3603",
-  storageBucket: "sismorcego-d3603.appspot.com",
-  messagingSenderId: "742942011918",
-  appId: "1:742942011918:web:33f9e5c293706ca607825f",
-  measurementId: "G-V8NVMD4381",
+const firebaseConfig = USE_FIREBASE_EMULATORS ? {
+  apiKey: 'fake-emulator-key', projectId: 'demo-sismorcego-spark', appId: 'demo-sismorcego-android',
+} : {
+  apiKey: "AIzaSyBPZUnFdq82vSa0WCrbqMRXSpzkyRPQxdM",
+  authDomain: "sismorcego-50b25.firebaseapp.com",
+  projectId: "sismorcego-50b25",
+  storageBucket: "sismorcego-50b25.firebasestorage.app",
+  messagingSenderId: "698315766055",
+  appId: "1:698315766055:web:4015ec00aae11bfbfe1102",
+  measurementId: "G-28DFXY0X41",
 };
 
 // Valida se as chaves mínimas existem (evita crash em ambientes sem .env)
@@ -56,12 +59,11 @@ try {
   app = null;
 }
 
-// Firestore com cache local persistente (em RN, sem tabManager)
+// O SDK web do Firestore não dispõe de IndexedDB no React Native.
 if (app) {
   try {
-    // Em RN o cache local persistente já é suficiente
     db = initializeFirestore(app, {
-      localCache: persistentLocalCache(),
+      localCache: memoryLocalCache(),
     });
   } catch (e1) {
     logger.warn(
@@ -75,6 +77,12 @@ if (app) {
       db = null;
     }
   }
+}
+
+// Exclusivo do APK com pacote .emulador: projeto demo e destinos fixos locais.
+// Não há fallback para o Firebase real se os emuladores estiverem desligados.
+if (USE_FIREBASE_EMULATORS) {
+  if (db) connectFirestoreEmulator(db, '10.0.2.2', 8088);
 }
 
 // Auth com persistência em AsyncStorage (não recria no hot reload)
@@ -94,6 +102,8 @@ if (app) {
   }
 }
 
+if (USE_FIREBASE_EMULATORS && auth) connectAuthEmulator(auth, 'http://10.0.2.2:9099', { disableWarnings: true });
+
 // =====================
 // Utilitários/Fallback
 // =====================
@@ -101,55 +111,4 @@ if (app) {
 // Indica se firebase está pronto para uso (db e/ou auth)
 const isFirebaseReady = Boolean(app) && (Boolean(db) || Boolean(auth));
 
-/**
- * ✅ Em produção: NUNCA retorna UID fake
- * - Retorna uid real ou null
- * ✅ Em DEV: opcionalmente retorna "dev-offline" para testes
- */
-function getUserIdOrDevOffline() {
-  const uid = auth?.currentUser?.uid || null;
-  if (uid) return uid;
-
-  // DEV only fallback
-  return __DEV__ ? "dev-offline" : null;
-}
-
-/**
- * ✅ Coleções DEV apenas em __DEV__
- * Em produção, não use coleções de teste por falta de Firebase.
- */
-function useDevCollections() {
-  return __DEV__;
-}
-
-// =====================
-// Exports
-// =====================
-
-export { app, db, auth };
-export { isFirebaseReady, getUserIdOrDevOffline, useDevCollections };
-
-/*
-Uso recomendado nas telas (ex.: NovoRegistro / Buscar):
-
-import { db, isFirebaseReady, getUserIdOrDevOffline, useDevCollections } from '@/services/firebase';
-
-// UID seguro para criar/filtrar documentos
-const uid = getUserIdOrDevOffline();
-
-// Exemplo: escolher coleção de teste quando em dev
-const colName = useDevCollections() ? 'registros_dev' : 'registros';
-
-// Se precisar garantir que Firestore existe:
-if (!isFirebaseReady || !db) {
-  // usar SQLite/fallback local aqui
-}
-
-// Verificação segura antes de operações:
-if (uid) {
-  // Só executa operações que dependem de UID se tiver um usuário autenticado
-} else {
-  // Em produção sem usuário, não tenta escrever no Firestore
-}
-
-*/
+export { app, db, auth, isFirebaseReady };

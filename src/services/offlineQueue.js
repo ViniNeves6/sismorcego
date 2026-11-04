@@ -18,55 +18,23 @@ import db, { getLocalCryptoKey, encryptText, decryptText } from "../database/db"
  * - payload (TEXT) criptografado (enc:v1:...)
  */
 
-const TABLE = "offline_queue";
-
+const TABLE = "offline_queue_v2";
 const nowISO = () => new Date().toISOString();
-
-const ensureQueueSchema = () =>
-  new Promise((resolve, reject) => {
-    db.transaction(
-      (tx) => {
-        tx.executeSql(
-          `
-          CREATE TABLE IF NOT EXISTS ${TABLE} (
-            recordId TEXT PRIMARY KEY,
-            uid TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            retryCount INTEGER NOT NULL DEFAULT 0,
-            lastError TEXT,
-            createdAt TEXT,
-            updatedAtLocal TEXT,
-            payload TEXT NOT NULL
-          );
-          `,
-          [],
-          () => {
-            tx.executeSql(
-              `CREATE INDEX IF NOT EXISTS idx_${TABLE}_status ON ${TABLE}(status);`,
-              [],
-              () => {},
-              () => {}
-            );
-            tx.executeSql(
-              `CREATE INDEX IF NOT EXISTS idx_${TABLE}_uid ON ${TABLE}(uid);`,
-              [],
-              () => {},
-              () => {}
-            );
-            tx.executeSql(
-              `CREATE INDEX IF NOT EXISTS idx_${TABLE}_updatedAtLocal ON ${TABLE}(updatedAtLocal);`,
-              [],
-              () => {},
-              () => {}
-            );
-            resolve(true);
-          },
-          (_, e) => reject(e)
-        );
-      },
-      (e) => reject(e)
-    );
-  });
+let schemaPromise;
+const columns = `recordId TEXT NOT NULL, uid TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending',
+  retryCount INTEGER NOT NULL DEFAULT 0, lastError TEXT, createdAt TEXT, updatedAtLocal TEXT, payload TEXT NOT NULL`;
+const ensureQueueSchema = () => {
+  if (!schemaPromise) schemaPromise = new Promise((resolve, reject) => {
+    db.transaction(tx => {
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS offline_queue (${columns}, PRIMARY KEY(recordId))`);
+      tx.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE} (${columns}, PRIMARY KEY(uid, recordId))`);
+      tx.executeSql(`INSERT OR IGNORE INTO ${TABLE} SELECT recordId, COALESCE(uid, ''), status, retryCount, lastError, createdAt, updatedAtLocal, payload FROM offline_queue`);
+      tx.executeSql('DROP TABLE offline_queue');
+      tx.executeSql(`CREATE INDEX IF NOT EXISTS idx_queue_owner_status ON ${TABLE}(uid, status)`);
+    }, reject, () => resolve(true));
+  }).catch(error => { schemaPromise = null; throw error; });
+  return schemaPromise;
+};
 
 const encryptPayload = async (obj) => {
   const key = await getLocalCryptoKey();
@@ -77,17 +45,18 @@ const encryptPayload = async (obj) => {
 const decryptPayload = async (cipherText) => {
   const key = await getLocalCryptoKey();
   const json = decryptText(cipherText, key);
-  if (!json) return null;
+  if (!json) throw new Error('Não foi possível ler um registro protegido. A cópia original foi preservada.');
   try {
     return JSON.parse(json);
   } catch {
-    return null;
+    throw new Error('Um registro salvo está inválido. A cópia original foi preservada.');
   }
 };
 
 // Normaliza metadados mínimos (sempre presentes)
 const normalizeMeta = (item) => {
-  const createdAt = item?.createdAt || nowISO();
+  const value = item?.createdAt;
+  const createdAt = value?.toDate?.()?.toISOString() || (value?.seconds ? new Date(value.seconds * 1000).toISOString() : value) || nowISO();
   const updatedAtLocal = item?.updatedAtLocal || nowISO();
   const status = item?.status || "pending";
   const retryCount = Number.isFinite(Number(item?.retryCount)) ? Number(item.retryCount) : 0;
@@ -97,7 +66,7 @@ const normalizeMeta = (item) => {
 };
 
 // Carrega fila completa (ordenada por updatedAtLocal desc)
-export async function loadQueue() {
+export async function loadQueue({ uid } = {}) {
   await ensureQueueSchema();
 
   return new Promise((resolve, reject) => {
@@ -105,9 +74,11 @@ export async function loadQueue() {
       tx.executeSql(
         `SELECT recordId, uid, status, retryCount, lastError, createdAt, updatedAtLocal, payload
          FROM ${TABLE}
+         ${uid ? 'WHERE uid = ?' : ''}
          ORDER BY datetime(updatedAtLocal) DESC, recordId DESC`,
-        [],
+        uid ? [uid] : [],
         async (_, result) => {
+          try {
           const rows = result.rows;
           const items = [];
 
@@ -131,6 +102,7 @@ export async function loadQueue() {
           }
 
           resolve(items);
+          } catch (error) { reject(error); }
         },
         (_, error) => reject(error)
       );
@@ -142,6 +114,7 @@ export async function loadQueue() {
 async function upsertQueueItem(item) {
   await ensureQueueSchema();
 
+  if (!item?.uid) throw new Error("offlineQueue: uid required");
   if (!item?.recordId) throw new Error("offlineQueue: recordId é obrigatório");
 
   const meta = normalizeMeta(item);
@@ -170,19 +143,35 @@ async function upsertQueueItem(item) {
           meta.updatedAtLocal,
           payloadEnc,
         ],
-        () => resolve(true),
+        () => {},
         (_, error) => reject(error)
       );
-    });
+    }, reject, () => resolve(true));
   });
 }
 
-export async function addToQueue(item) {
+export async function addToQueue(item, { returnQueue = true } = {}) {
   await upsertQueueItem(item);
-  return loadQueue();
+  return returnQueue ? loadQueue({ uid: item.uid }) : item;
 }
 
-export async function updateQueueItem(recordId, patch = {}) {
+// Uma consulta da nuvem não pode substituir uma edição criada enquanto ela
+// estava em andamento. A inserção do cache só ocorre se o ID ainda não existir.
+export async function cacheCloudRecord(item) {
+  await ensureQueueSchema();
+  const meta = normalizeMeta({ ...item, status: 'synced' });
+  const payload = await encryptPayload({ ...item, ...meta });
+  return new Promise((resolve, reject) => {
+    db.transaction(tx => tx.executeSql(
+      `INSERT OR IGNORE INTO ${TABLE} (recordId, uid, status, retryCount, lastError, createdAt, updatedAtLocal, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [String(item.recordId), item.uid, meta.status, meta.retryCount, meta.lastError, meta.createdAt, meta.updatedAtLocal, payload],
+      () => {}, (_, error) => reject(error),
+    ), reject, () => resolve(true));
+  });
+}
+
+export async function updateQueueItem(recordId, patch = {}, { uid } = {}) {
+  if (!uid) throw new Error("offlineQueue: uid required");
   await ensureQueueSchema();
   if (!recordId) throw new Error("offlineQueue: recordId é obrigatório");
 
@@ -191,9 +180,10 @@ export async function updateQueueItem(recordId, patch = {}) {
     db.transaction((tx) => {
       tx.executeSql(
         `SELECT recordId, uid, status, retryCount, lastError, createdAt, updatedAtLocal, payload
-         FROM ${TABLE} WHERE recordId = ? LIMIT 1`,
-        [String(recordId)],
+         FROM ${TABLE} WHERE recordId = ? AND uid = ? LIMIT 1`,
+        [String(recordId), uid],
         async (_, result) => {
+          try {
           if (result.rows.length === 0) return resolve(null);
           const row = result.rows.item(0);
           const payloadObj = await decryptPayload(row.payload);
@@ -210,6 +200,7 @@ export async function updateQueueItem(recordId, patch = {}) {
           };
 
           resolve(merged);
+          } catch (error) { reject(error); }
         },
         (_, error) => reject(error)
       );
@@ -217,7 +208,8 @@ export async function updateQueueItem(recordId, patch = {}) {
   });
 
   // Se não existe, cria um novo com patch (mas exige recordId)
-  const base = current || { recordId: String(recordId) };
+  if (!current) return false;
+  const base = current;
 
   // Atualiza updatedAtLocal sempre que patchar
   const next = {
@@ -228,27 +220,63 @@ export async function updateQueueItem(recordId, patch = {}) {
   };
 
   await upsertQueueItem(next);
-  return loadQueue();
+  return loadQueue({ uid });
 }
 
-export async function removeFromQueue(recordIds) {
+// Só aplica a resposta da rede à revisão que foi enviada. O payload na
+// condição também protege uma edição ocorrida entre a leitura e o UPDATE.
+export async function updateQueueItemIfRevision(recordId, revision, patch, { uid, preserveLocalTime = false, cloudRefresh = false } = {}) {
+  if (!uid) throw new Error("offlineQueue: uid required");
+  await ensureQueueSchema();
+  const row = await new Promise((resolve, reject) => {
+    db.transaction(tx => tx.executeSql(
+      `SELECT * FROM ${TABLE} WHERE recordId = ? AND uid = ? LIMIT 1`, [String(recordId), uid],
+      (_, result) => resolve(result.rows.length ? result.rows.item(0) : null),
+      (_, error) => reject(error),
+    ));
+  });
+  if (!row) return false;
+  const current = await decryptPayload(row.payload);
+  if (!current || (current.localRevision || row.updatedAtLocal) !== revision) return false;
+  // Uma consulta iniciada antes da confirmação de um envio pode terminar
+  // depois dele. Não rebaixar a versão nem substituir uma alteração pendente.
+  const remoteRevision = Number(patch.serverRevision || 0);
+  if (cloudRefresh && (row.status !== 'synced' || current.syncAction === 'delete'
+    || remoteRevision < Math.max(Number(current.serverRevision || 0), Number(current.baseServerRevision || 0)))) return false;
+  const next = { ...current, ...patch, ...(cloudRefresh ? {
+    baseServerRevision: remoteRevision, hasServerCopy: true, syncConflict: null,
+  } : {}), localRevision: revision,
+    updatedAtLocal: preserveLocalTime ? current.updatedAtLocal || row.updatedAtLocal : nowISO() };
+  const encrypted = await encryptPayload(next);
+  return new Promise((resolve, reject) => {
+    let changed = false;
+    db.transaction(tx => tx.executeSql(
+      `UPDATE ${TABLE} SET status = ?, retryCount = ?, lastError = ?, updatedAtLocal = ?, payload = ? WHERE recordId = ? AND uid = ? AND payload = ?`,
+      [next.status, next.retryCount || 0, next.lastError ?? null, next.updatedAtLocal, encrypted, String(recordId), uid, row.payload],
+      (_, result) => { changed = result.rowsAffected > 0; }, (_, error) => reject(error),
+    ), reject, () => resolve(changed));
+  });
+}
+
+export async function removeFromQueue(recordIds, { uid } = {}) {
+  if (!uid) throw new Error("offlineQueue: uid required");
   await ensureQueueSchema();
   const ids = Array.isArray(recordIds) ? recordIds.map(String).filter(Boolean) : [];
 
-  if (ids.length === 0) return loadQueue();
+  if (ids.length === 0) return loadQueue({ uid });
 
   const placeholders = ids.map(() => "?").join(",");
 
   await new Promise((resolve, reject) => {
     db.transaction((tx) => {
       tx.executeSql(
-        `DELETE FROM ${TABLE} WHERE recordId IN (${placeholders})`,
-        ids,
-        () => resolve(true),
+        `DELETE FROM ${TABLE} WHERE recordId IN (${placeholders}) AND uid = ?`,
+        [...ids, uid],
+        () => {},
         (_, error) => reject(error)
       );
-    });
+    }, reject, () => resolve(true));
   });
 
-  return loadQueue();
+  return loadQueue({ uid });
 }

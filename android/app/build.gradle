@@ -7,6 +7,7 @@ apply plugin: "com.facebook.react"
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
+    debuggableVariants = ["debug", "homologation", "emulator"]
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -84,6 +85,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "boolean", "SISMORCEGO_REAL_FIREBASE", "false"
+        buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "false"
     }
     signingConfigs {
         debug {
@@ -105,6 +108,21 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+        }
+
+        homologation {
+            initWith debug
+            applicationIdSuffix ".homologacao"
+            matchingFallbacks = ["debug"]
+            buildConfigField "boolean", "SISMORCEGO_REAL_FIREBASE", "true"
+            resValue "string", "app_name", "Sismorcego Homologação"
+        }
+        emulator {
+            initWith debug
+            applicationIdSuffix ".emulador"
+            matchingFallbacks = ["debug"]
+            buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "true"
+            resValue "string", "app_name", "Sismorcego Emulador"
         }
         release {
             // Caution! In production, you need to generate your own keystore file.
@@ -128,3 +146,9 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Fonte de ícones vetoriais (somente Feather, para não inflar o APK)
+project.ext.vectoricons = [
+    iconFontNames: ['Feather.ttf']
+]
+apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
