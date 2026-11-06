@@ -9,7 +9,7 @@ import AuthContext from './authContext';
 const managedAccount = async () => { throw new Error('Esta conta é gerenciada pela equipe responsável pela avaliação.'); };
 export default function EvaluationAuthProvider({ children }) {
   const controller = useRef(null);
-  const [evaluation, setEvaluation] = useState({ status: 'checking', user: null, role: null, installationId: '', reason: null });
+  const [evaluation, setEvaluation] = useState({ status: 'checking', user: null, role: null, reason: null });
   useEffect(() => {
     // Own the controller in this effect so a StrictMode cleanup/setup cycle
     // never reuses a disposed session or duplicates Firebase listeners.
@@ -19,16 +19,16 @@ export default function EvaluationAuthProvider({ children }) {
     controller.current = session;
     const unsubscribe = session.subscribe(setEvaluation);
     session.start();
-    const foreground = AppState.addEventListener('change', state => { if (state === 'active') session.revalidate(true); });
+    const foreground = AppState.addEventListener('change', state => session.setForeground(state === 'active'));
     const network = NetInfo.addEventListener(net => { if (net.isConnected && net.isInternetReachable !== false) session.revalidate(true); });
     // Bound detection time while the app remains foregrounded. Server rules
     // still enforce the real Firebase session and coordinator role.
-    const periodic = setInterval(() => { if (AppState.currentState === 'active') session.revalidate(true); }, 5 * 60000);
+    const periodic = setInterval(() => { if (AppState.currentState === 'active') session.revalidate(); }, 45000);
     return () => { clearInterval(periodic); foreground.remove(); network(); unsubscribe(); session.dispose();
       if (controller.current === session) controller.current = null; };
   }, []);
   return <AuthContext.Provider value={{ user: evaluation.user, role: evaluation.role, loading: false,
-    evaluation, provisionDevice: raw => controller.current?.provision(raw), retrySession: () => controller.current?.revalidate(true),
+    evaluation, retrySession: () => controller.current?.revalidate(true),
     signIn: managedAccount, signUp: managedAccount, signOut: managedAccount, resetPassword: managedAccount, updateUser: managedAccount }}>
     {children}
   </AuthContext.Provider>;

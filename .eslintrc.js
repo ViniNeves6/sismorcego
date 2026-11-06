@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   extends: '@react-native',
   overrides: [{
-    files: ['scripts/provision-coordinator-device.cjs'],
+    files: ['functions-evaluation/**/*.js'],
     env: { node: true, es2021: true },
     parserOptions: { ecmaVersion: 2021 },
   }],

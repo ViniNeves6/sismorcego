@@ -17,10 +17,10 @@ beforeEach(() => {
     let active = true, listener;
     const session = {
       subscribe: fn => { listener = fn; return () => { listener = null; }; },
-      start: () => session.publish({ status: 'needs-configuration', user: null, role: null }),
+      start: () => session.publish({ status: 'checking', user: null, role: null }),
       publish: state => { if (active) listener?.(state); },
       dispose: jest.fn(() => { active = false; }),
-      provision: jest.fn(), revalidate: jest.fn(),
+      revalidate: jest.fn(), setForeground: jest.fn(),
     };
     sessions.push(session); return session;
   });
@@ -30,7 +30,8 @@ afterEach(async () => { if (tree) await act(async () => tree.unmount()); tree = 
 test('effect replay keeps a live session, discards stale events and prohibits credential changes', async () => {
   await act(async () => { tree = Renderer.create(<StrictMode><EvaluationAuthProvider><Probe /></EvaluationAuthProvider></StrictMode>); });
   expect(context.user).toBeNull();
-  expect(context.evaluation.status).toBe('needs-configuration');
+  expect(context.evaluation.status).toBe('checking');
+  expect(context.provisionDevice).toBeUndefined();
   const live = sessions.at(-1), user = { uid: 'shared-coordinator' };
   await act(async () => live.publish({ status: 'ready', user, role: 'coordenador' }));
   expect(context.user).toEqual(user);

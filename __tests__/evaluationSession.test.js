@@ -1,115 +1,141 @@
-import { assertEvaluationToken, createEvaluationSession, parseEvaluationConfiguration } from '../src/services/evaluationSession';
+import { assertEvaluationToken, createEvaluationSession, EVALUATION_UID } from '../src/services/evaluationSession';
 jest.mock('firebase/auth', () => ({}));
 jest.mock('firebase/firestore', () => ({}));
-jest.mock('../src/services/pushDevices', () => ({ detachPushDevice: jest.fn() }));
-jest.mock('../src/services/recordDraftIdentity', () => ({ newRecordId: () => 'installation-1234567890123456' }));
-jest.mock('../src/services/firebase', () => ({ auth: null, db: null }));
+jest.mock('../src/services/appEnvironment', () => ({ EVALUATION_ACCESS_URL: '' }));
 
-const id = 'installation-1234567890123456', projectId = 'demo-sismorcego-spark';
-const user = { uid: 'shared-coordinator', isAnonymous: false };
-let session, auth, sdk, saved, storage, token, authEvent, roleEvent, online;
-const packet = changes => JSON.stringify({ version: 1, projectId, uid: user.uid, installationId: id,
-  customToken: 'header.payload.signature', expiresAt: Date.now() + 3600000, ...changes });
-const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+const base = Date.parse('2026-11-06T15:00:00Z'), user = { uid: EVALUATION_UID, isAnonymous: false };
+let session, auth, sdk, api, token, authEvent, online, elapsed, period, blocked;
+const settle = async () => { for (let i = 0; i < 25; i++) await Promise.resolve(); };
+const snapshot = () => ({ version: 1, state: blocked || (!period.enabled ? 'suspended' : base + elapsed >= period.expiresAt ? 'expired' : 'active'),
+  serverTime: base + elapsed, startAt: base - 1000, expiresAt: period.expiresAt, leaseMs: 60000 });
+const options = () => ({ auth, db: {}, projectId: 'demo-sismorcego-spark', backendEnabled: true, sdk, api, online, clock: () => elapsed });
+const start = async () => { session.start(); authEvent(auth.currentUser); await session.revalidate(); };
+const advance = async ms => { elapsed += ms; await jest.advanceTimersByTimeAsync(ms); await settle(); };
 beforeEach(() => {
-  jest.useFakeTimers({ now: new Date('2026-11-06T12:00:00Z') });
-  saved = new Map(); online = jest.fn().mockResolvedValue(true); auth = { currentUser: null };
-  storage = { getItem: jest.fn(async key => saved.get(key) || null), setItem: jest.fn(async (key, value) => saved.set(key, value)), removeItem: jest.fn(async key => saved.delete(key)) };
-  token = { claims: { sismorcegoEvaluationAccount: true, evaluationInstallation: id }, expirationTime: new Date(Date.now() + 3600000).toISOString() };
-  sdk = { doc: jest.fn((_, ...path) => path.join('/')),
-    onIdTokenChanged: jest.fn((_, fn) => { authEvent = fn; return jest.fn(); }),
-    getIdTokenResult: jest.fn(async () => token),
-    signInWithCustomToken: jest.fn(async () => { auth.currentUser = user; authEvent?.(user); return { user }; }),
-    signOut: jest.fn(async () => { auth.currentUser = null; authEvent?.(null); }),
+  jest.useFakeTimers({ now: base }); elapsed = 0; blocked = null;
+  period = { enabled: true, expiresAt: base + 30 * 86400000 }; auth = { currentUser: null };
+  token = { claims: { sismorcegoEvaluationAccount: true }, expirationTime: new Date(base + 3600000).toISOString() };
+  online = jest.fn().mockResolvedValue(true);
+  api = { status: jest.fn(async () => snapshot()), issue: jest.fn(async () => ({ ...snapshot(), uid: EVALUATION_UID, customToken: 'server-issued-token' })) };
+  sdk = { onIdTokenChanged: jest.fn((_, fn) => { authEvent = fn; return jest.fn(); }),
+    doc: jest.fn((_, ...parts) => parts.join('/')),
     getDocFromServer: jest.fn(async () => ({ exists: () => true, data: () => ({ role: 'coordenador' }) })),
-    onSnapshot: jest.fn((_, options, fn) => { roleEvent = fn; return jest.fn(); }),
+    signInWithCustomToken: jest.fn(async () => { auth.currentUser = user; authEvent(user); return { user }; }),
+    getIdTokenResult: jest.fn(async () => token),
+    signOut: jest.fn(async () => { auth.currentUser = null; authEvent(null); }),
   };
-  session = createEvaluationSession({ auth, db: {}, projectId, backendEnabled: true, storage, sdk, online, makeId: () => id, detach: jest.fn().mockResolvedValue() });
+  session = createEvaluationSession(options());
 });
-afterEach(() => { session.dispose(); jest.useRealTimers(); });
+afterEach(() => { session.dispose(); jest.clearAllTimers(); jest.useRealTimers(); });
 
-test('missing session stays blocked without signing in, fabricating a user or assigning an ACS/coordinator role', async () => {
-  await session.start(); authEvent(null); await settle();
-  expect(session.getState()).toMatchObject({ status: 'needs-configuration', user: null, role: null, installationId: id });
-  expect(sdk.signInWithCustomToken).not.toHaveBeenCalled(); expect(sdk.getDocFromServer).not.toHaveBeenCalled();
-});
-
-test('provisioning exchanges a short-lived token and requires both signed claims and the server coordinator role', async () => {
-  await session.start(); await session.provision(packet());
-  expect(sdk.signInWithCustomToken).toHaveBeenCalledWith(auth, 'header.payload.signature');
-  expect(sdk.getDocFromServer).toHaveBeenCalledWith(`usuarios/${user.uid}`);
+test('clean install signs in automatically through the server and requires a real coordinator profile', async () => {
+  await start();
+  expect(api.issue).toHaveBeenCalledTimes(1);
+  expect(sdk.signInWithCustomToken).toHaveBeenCalledWith(auth, 'server-issued-token');
+  expect(sdk.getDocFromServer).toHaveBeenCalledWith(`usuarios/${EVALUATION_UID}`);
   expect(session.getState()).toMatchObject({ status: 'ready', user, role: 'coordenador' });
-  const metadata = [...saved.values()].find(value => value.includes('verified'));
-  expect(metadata).not.toContain('header.payload.signature');
+  expect(session.provision).toBeUndefined(); expect(session.getState().installationId).toBeUndefined();
 });
-
-test('reopening restores a previously provisioned SDK session without another credential exchange', async () => {
-  await session.start(); await session.provision(packet()); session.dispose();
-  session = createEvaluationSession({ auth, db: {}, projectId, backendEnabled: true, storage, sdk, online, makeId: () => id });
-  await session.start(); authEvent(user); await settle(); await session.revalidate();
-  expect(session.getState().status).toBe('ready'); expect(sdk.signInWithCustomToken).toHaveBeenCalledTimes(1);
+test('reopening reuses persisted Firebase Auth without another custom token or local approval marker', async () => {
+  await start(); session.dispose(); session = createEvaluationSession(options()); await start();
+  expect(session.getState().status).toBe('ready'); expect(api.issue).toHaveBeenCalledTimes(1);
 });
-
-test.each(['account-claim', 'installation', 'role', 'anonymous'])('%s mismatch never opens the coordinator interface', async kind => {
-  await session.start();
-  if (kind === 'account-claim') token.claims.sismorcegoEvaluationAccount = false;
-  if (kind === 'installation') token.claims.evaluationInstallation = 'another-installation';
+test.each(['expired', 'suspended', 'blocked', 'not-started'])('%s blocks a clean install without requesting a token', async status => {
+  blocked = status; await start(); expect(api.issue).not.toHaveBeenCalled();
+  expect(session.getState()).toMatchObject({ status, user: null, role: null });
+});
+test('expiration blocks at the server deadline; extension reuses the session without reinstalling', async () => {
+  period.expiresAt = base + 1000; await start(); await advance(1001);
+  expect(session.getState()).toMatchObject({ status: 'expired', user: null });
+  expect(auth.currentUser).toBe(user); expect(sdk.signOut).not.toHaveBeenCalled();
+  period.expiresAt += 30 * 86400000; await session.revalidate();
+  expect(session.getState().status).toBe('ready'); expect(api.issue).toHaveBeenCalledTimes(1);
+});
+test('suspension survives offline errors; reactivation restores without clearing Firebase persistence', async () => {
+  await start(); period.enabled = false; await session.revalidate();
+  expect(session.getState().status).toBe('suspended'); online.mockResolvedValue(false); await session.revalidate();
+  expect(session.getState().user).toBeNull(); expect(sdk.signOut).not.toHaveBeenCalled();
+  online.mockResolvedValue(true); period.enabled = true; await session.revalidate();
+  expect(session.getState().status).toBe('ready'); expect(api.issue).toHaveBeenCalledTimes(1);
+});
+test('ID-token refresh events during reactivation cannot erase the fresh server lease', async () => {
+  await start(); period.enabled = false; await session.revalidate(); period.enabled = true;
+  sdk.getIdTokenResult.mockImplementationOnce(async () => { authEvent(user); return token; });
+  await session.revalidate(true); expect(session.getState().status).toBe('ready');
+});
+test('cached policy snapshots cannot grant/block access; matching first server snapshot preserves the initial screen', async () => {
+  let control;
+  sdk.onSnapshot = jest.fn((_, options, callback) => { control = callback; return jest.fn(); });
+  await start(); const calls = api.status.mock.calls.length;
+  const data = enabled => ({ enabled, startAt: { toMillis: () => base - 1000 }, expiresAt: { toMillis: () => period.expiresAt } });
+  control({ metadata: { fromCache: true }, exists: () => true, data: () => data(false) });
+  control({ metadata: { fromCache: false }, exists: () => true, data: () => data(true) });
+  await settle(); expect(session.getState().status).toBe('ready'); expect(api.status).toHaveBeenCalledTimes(calls);
+  period.enabled = false;
+  control({ metadata: { fromCache: false }, exists: () => true, data: () => data(false) });
+  await session.revalidate(); expect(session.getState().status).toBe('suspended');
+  period.enabled = true; period.expiresAt += 30 * 86400000;
+  control({ metadata: { fromCache: false }, exists: () => true, data: () => data(true) });
+  await session.revalidate(); expect(session.getState().status).toBe('ready'); expect(api.issue).toHaveBeenCalledTimes(1);
+});
+test('cold offline launch never opens cached protected screens', async () => {
+  auth.currentUser = user; online.mockResolvedValue(false); await start();
+  expect(session.getState()).toMatchObject({ status: 'offline', user: null }); expect(api.issue).not.toHaveBeenCalled();
+});
+test('network loss allows at most the remaining server lease and cannot extend a known expiration', async () => {
+  await start(); online.mockResolvedValue(false); await session.revalidate(); expect(session.getState().status).toBe('ready');
+  await advance(60001); expect(session.getState()).toMatchObject({ status: 'offline', user: null });
+  expect(auth.currentUser).toBe(user);
+  online.mockResolvedValue(true); await session.revalidate(); expect(session.getState().status).toBe('ready');
+});
+test('device wall clock changes cannot grant time or hide a server-side suspension', async () => {
+  await start(); jest.setSystemTime(base - 365 * 86400000); period.enabled = false; await session.revalidate();
+  expect(session.getState().status).toBe('suspended');
+});
+test('foreground always rechecks the server, even when the monotonic timer did not advance during sleep', async () => {
+  await start(); session.setForeground(false); blocked = 'expired'; session.setForeground(true); await session.revalidate();
+  expect(session.getState()).toMatchObject({ status: 'expired', user: null });
+});
+test('loss of the local session triggers automatic recovery instead of a login or setup screen', async () => {
+  await start(); auth.currentUser = null; authEvent(null); await session.revalidate();
+  expect(session.getState().status).toBe('ready'); expect(api.issue).toHaveBeenCalledTimes(2);
+});
+test('revoked refresh token can be re-established only when the server authorizes issuance', async () => {
+  await start(); sdk.getIdTokenResult.mockRejectedValueOnce(Object.assign(new Error(), { code: 'auth/user-token-expired' }));
+  await session.revalidate(true); expect(session.getState().status).toBe('ready');
+  expect(sdk.signOut).toHaveBeenCalledTimes(1); expect(api.issue).toHaveBeenCalledTimes(2);
+});
+test('disabled shared account is blocked by the server without repeated token issuance', async () => {
+  await start(); blocked = 'blocked'; await session.revalidate(true);
+  expect(session.getState().status).toBe('blocked'); expect(api.issue).toHaveBeenCalledTimes(1);
+});
+test.each(['uid', 'anonymous', 'claim', 'role'])('%s mismatch cannot enter the coordinator interface', async kind => {
+  if (kind === 'uid') sdk.signInWithCustomToken.mockImplementation(async () => ({ user: { ...user, uid: 'other' } }));
+  if (kind === 'anonymous') sdk.signInWithCustomToken.mockImplementation(async () => ({ user: { ...user, isAnonymous: true } }));
+  if (kind === 'claim') token.claims.sismorcegoEvaluationAccount = false;
   if (kind === 'role') sdk.getDocFromServer.mockResolvedValue({ exists: () => true, data: () => ({ role: 'acs' }) });
-  if (kind === 'anonymous') sdk.signInWithCustomToken.mockImplementation(async () => { auth.currentUser = { ...user, isAnonymous: true }; return { user: auth.currentUser }; });
-  await expect(session.provision(packet())).rejects.toMatchObject({ code: 'evaluation/configuration-rejected' });
-  expect(session.getState()).toMatchObject({ status: 'needs-configuration', user: null, role: null });
-  expect(sdk.signOut).toHaveBeenCalled();
+  await start(); expect(session.getState().user).toBeNull(); expect(session.getState().role).toBeNull();
 });
-
-test('revoked refresh credentials clear approval and block access instead of reopening login', async () => {
-  await session.start(); await session.provision(packet());
-  sdk.getIdTokenResult.mockRejectedValue(Object.assign(new Error(), { code: 'auth/user-token-expired' }));
-  await session.revalidate(true);
-  expect(session.getState()).toMatchObject({ status: 'needs-configuration', user: null, role: null });
-  expect([...saved.values()].some(value => value.includes('verified'))).toBe(false);
-});
-
-test('a forced revocation check arriving during a cached check is awaited and never dropped', async () => {
-  await session.start(); await session.provision(packet());
-  let finishCached;
-  sdk.getIdTokenResult.mockImplementationOnce(() => new Promise(resolve => { finishCached = resolve; }))
-    .mockRejectedValueOnce(Object.assign(new Error(), { code: 'auth/user-disabled' }));
-  const cached = session.revalidate(); await settle();
-  const forced = session.revalidate(true);
-  finishCached(token); await cached; await forced;
+test('forced renewal is not swallowed by an already running cached-token check', async () => {
+  await start(); let finish;
+  sdk.getIdTokenResult.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const a = session.revalidate(); await settle(); const b = session.revalidate(true); finish(token); await a; await b;
   expect(sdk.getIdTokenResult).toHaveBeenLastCalledWith(user, true);
-  expect(session.getState().user).toBeNull(); expect(sdk.signOut).toHaveBeenCalled();
 });
-
-test('offline access uses an already verified session only until the token expires', async () => {
-  await session.start(); await session.provision(packet()); online.mockResolvedValue(false);
-  await session.revalidate(); expect(session.getState().status).toBe('ready');
-  sdk.getIdTokenResult.mockRejectedValue(Object.assign(new Error(), { code: 'auth/network-request-failed' }));
-  await jest.advanceTimersByTimeAsync(3600001);
-  expect(session.getState()).toMatchObject({ status: 'needs-configuration', user: null, role: null, reason: 'connection-required' });
+test('a suspension occurring while a token is being requested is applied before SDK sign-in', async () => {
+  api.issue.mockResolvedValue({ ...snapshot(), state: 'suspended' }); await start();
+  expect(session.getState().status).toBe('suspended'); expect(sdk.signInWithCustomToken).not.toHaveBeenCalled();
 });
-
-test('server role revocation blocks the shared session; cached role snapshots cannot grant access', async () => {
-  await session.start(); await session.provision(packet());
-  roleEvent({ metadata: { fromCache: true }, exists: () => true, data: () => ({ role: 'acs' }) });
-  expect(session.getState().status).toBe('ready');
-  roleEvent({ metadata: { fromCache: false }, exists: () => true, data: () => ({ role: 'acs' }) });
-  await settle(); expect(session.getState().user).toBeNull(); expect(sdk.signOut).toHaveBeenCalled();
+test('disposed and background requests cannot reopen protected screens', async () => {
+  let finish; api.status.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  session.start(); authEvent(null); await settle(); session.dispose(); finish(snapshot()); await settle();
+  expect(session.getState().user).toBeNull(); expect(sdk.signInWithCustomToken).not.toHaveBeenCalled();
 });
-
-test('an arbitrary persisted Firebase user without installation approval is rejected', async () => {
-  auth.currentUser = user; await session.start(); authEvent(user); await settle(); await session.revalidate();
-  expect(session.getState().user).toBeNull(); expect(sdk.signOut).toHaveBeenCalled();
+test('an unsupported build never enables local fake authentication or public access', () => {
+  session.dispose(); session = createEvaluationSession({ ...options(), backendEnabled: false }); session.start();
+  expect(session.getState()).toMatchObject({ status: 'unavailable', user: null, reason: 'unsupported-build' });
+  expect(api.issue).not.toHaveBeenCalled();
 });
-
-test.each([{ projectId: 'foreign-project' }, { installationId: 'another-installation' }, { uid: '' },
-  { expiresAt: 1 }, { customToken: 'invalid' }, { customToken: 'header.payload.' }])('invalid provisioning document %j is rejected before SDK access', async patch => {
-  await session.start(); await expect(session.provision(packet(patch))).rejects.toMatchObject({ code: 'evaluation/invalid-configuration' });
-  expect(sdk.signInWithCustomToken).not.toHaveBeenCalled();
-});
-
-test('unsigned emulator tokens are accepted for parsing only in the explicitly local demo mode', () => {
-  expect(() => parseEvaluationConfiguration(packet({ customToken: 'header.payload.' }), { projectId, installationId: id })).toThrow();
-  expect(parseEvaluationConfiguration(packet({ customToken: 'header.payload.' }), { projectId, installationId: id, emulator: true })).toBeTruthy();
-  expect(() => assertEvaluationToken({ ...user, uid: 'other' }, token, { uid: user.uid, installationId: id }, id)).toThrow();
+test('expired ID token never passes validation even during a valid evaluation', () => {
+  expect(() => assertEvaluationToken(user, token, base + 3600001)).toThrow();
 });

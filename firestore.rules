@@ -9,7 +9,24 @@ rules_version = '2';
 // duvidas: autor/criação imutáveis; coordenador responde e publica.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+    // configuracoes/avaliacaoCoordenadores: enabled bool, startAt/expiresAt
+    // Timestamp. Only IAM administrators can edit. The shared UID may read this
+    // non-sensitive status even after expiry, so extensions can restore access.
+    // Normal accounts do not depend on this evaluation-only document.
+    function evaluationActive() {
+      let path = /databases/$(database)/documents/configuracoes/avaliacaoCoordenadores;
+      return exists(path) && get(path).data.enabled == true
+        && get(path).data.startAt is timestamp && get(path).data.expiresAt is timestamp
+        && get(path).data.startAt <= request.time && request.time < get(path).data.expiresAt;
+    }
+    function signedIn() {
+      return request.auth != null
+        && (request.auth.uid != 'sismorcego-teste-coordenadores' || evaluationActive());
+    }
+    match /configuracoes/avaliacaoCoordenadores {
+      allow get: if request.auth != null && request.auth.uid == 'sismorcego-teste-coordenadores';
+      allow list, write: if false;
+    }
     function owner(uid) { return signedIn() && request.auth.uid == uid; }
     // ACS e coordenador têm a mesma autoridade de alteração: apenas o autor
     // original. Supervisão de terceiros concede leitura, nunca escrita.

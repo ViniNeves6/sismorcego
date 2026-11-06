@@ -1,6 +1,8 @@
 {
+  "functions": [{ "source": "functions-evaluation", "codebase": "coordinator-evaluation", "runtime": "nodejs22" }],
   "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
   "emulators": {
+    "functions": { "host": "127.0.0.1", "port": 5001 },
     "auth": { "host": "127.0.0.1", "port": 9099 },
     "firestore": { "host": "127.0.0.1", "port": 8088 },
     "ui": { "enabled": false },

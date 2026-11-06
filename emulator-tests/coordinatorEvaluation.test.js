@@ -1,88 +1,97 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, getIdTokenResult, signOut } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, doc, setDoc, terminate, setLogLevel } from 'firebase/firestore';
+import { getAuth, connectAuthEmulator, signOut } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator, doc, getDocFromServer, getDocsFromServer, collectionGroup, setDoc, updateDoc, terminate, setLogLevel } from 'firebase/firestore';
 import { initializeApp as initializeAdmin, deleteApp as deleteAdmin } from 'firebase-admin/app';
 import { getAuth as adminAuth } from 'firebase-admin/auth';
-import { getFirestore as adminFirestore } from 'firebase-admin/firestore';
-import { createEvaluationSession } from '../src/services/evaluationSession';
-const { provision } = require('../scripts/provision-coordinator-device.cjs');
-jest.mock('../src/services/firebase', () => ({ auth: null, db: null }));
-jest.mock('../src/services/pushDevices', () => ({ detachPushDevice: async () => {} }));
-jest.mock('../src/services/recordDraftIdentity', () => ({ newRecordId: () => 'not-used-in-tests-1234567890' }));
+import { getFirestore as adminFirestore, Timestamp } from 'firebase-admin/firestore';
+import { createEvaluationSession, EVALUATION_UID } from '../src/services/evaluationSession';
+import { createEvaluationApi } from '../src/services/evaluationApi';
+jest.mock('../src/services/appEnvironment', () => ({ EVALUATION_ACCESS_URL: '' }));
 if (process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:9099' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8088') throw new Error('Local demo emulators only.');
-const projectId = 'demo-sismorcego-spark';
-let admin, uid, folder, devices, controllers;
+const projectId = 'demo-sismorcego-spark', url = 'http://127.0.0.1:5001/demo-sismorcego-spark/southamerica-east1/evaluationAccess';
+let admin, config, devices, controllers, record;
 beforeAll(() => { setLogLevel('silent'); admin = initializeAdmin({ projectId }, 'evaluation-admin-local'); });
 beforeEach(async () => {
   devices = []; controllers = [];
-  folder = fs.mkdtempSync(path.join(os.tmpdir(), 'sismorcego-evaluation-local-'));
-  uid = `evaluation-${Date.now()}`;
-  await adminAuth(admin).createUser({ uid, displayName: 'Sismorcego Teste' });
-  await adminAuth(admin).setCustomUserClaims(uid, { sismorcegoEvaluationAccount: true });
-  await adminFirestore(admin).doc(`usuarios/${uid}`).set({ role: 'coordenador' });
+  await adminAuth(admin).createUser({ uid: EVALUATION_UID, displayName: 'Sismorcego Teste' });
+  await adminAuth(admin).setCustomUserClaims(EVALUATION_UID, { sismorcegoEvaluationAccount: true });
+  await adminFirestore(admin).doc(`usuarios/${EVALUATION_UID}`).set({ role: 'coordenador' });
+  config = adminFirestore(admin).doc('configuracoes/avaliacaoCoordenadores');
+  await config.set({ enabled: true, startAt: Timestamp.fromMillis(Date.now() - 86400000), expiresAt: Timestamp.fromMillis(Date.now() + 30 * 86400000) });
+  record = adminFirestore(admin).doc(`registros/ordinary-acs/itens/local-evaluation-${Date.now()}`);
+  await record.set({ uid: 'ordinary-acs', nomeAcs: 'Responsável fictício', updatedAt: Timestamp.now() });
 });
 afterEach(async () => {
   controllers.forEach(session => session.dispose());
   for (const client of devices) { await terminate(client.db); await signOut(client.auth).catch(() => {}); await deleteApp(client.app); }
-  await adminAuth(admin).deleteUser(uid);
-  for (const name of fs.readdirSync(folder)) fs.unlinkSync(path.join(folder, name));
-  fs.rmdirSync(folder);
+  await adminAuth(admin).deleteUser(EVALUATION_UID);
+  await adminFirestore(admin).doc(`usuarios/${EVALUATION_UID}`).delete(); await config.delete(); await record.delete();
 });
 afterAll(async () => { await deleteAdmin(admin); });
-async function device(name) {
-  const installationId = `evaluation-device-${name}-1234567890`;
-  const output = path.join(folder, `${name}.json`);
-  await provision({ emulator: true, project: projectId, uid, installation: installationId, output });
-  const app = initializeApp({ projectId, apiKey: 'fake-emulator-key', appId: 'evaluation-local' }, `${uid}-${name}`);
+const waitFor = (session, status) => new Promise((resolve, reject) => {
+  if (session.getState().status === status) { resolve(); return; }
+  const timer = setTimeout(() => { stop(); reject(new Error(`Expected ${status}, got ${session.getState().status}`)); }, 18000);
+  const stop = session.subscribe(state => { if (state.status === status) { clearTimeout(timer); stop(); resolve(); } });
+});
+async function device(name, extra = {}) {
+  const app = initializeApp({ projectId, apiKey: 'fake-emulator-key' }, 'evaluation-' + name + '-' + Date.now());
   const auth = getAuth(app), db = getFirestore(app);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true }); connectFirestoreEmulator(db, '127.0.0.1', 8088);
-  const values = new Map();
-  const storage = { getItem: async key => values.get(key) || null, setItem: async (key, value) => { values.set(key, value); }, removeItem: async key => { values.delete(key); } };
-  const options = { auth, db, projectId, backendEnabled: true, emulator: true, storage, makeId: () => installationId, detach: async () => {} };
-  const session = createEvaluationSession(options);
-  devices.push({ app, auth, db }); controllers.push(session);
-  await session.start(); await session.provision(fs.readFileSync(output, 'utf8'));
-  return { app, auth, db, session, options };
+  const api = createEvaluationApi({ url }); api.issue = jest.fn(api.issue);
+  const options = { auth, db, projectId, backendEnabled: true, api, ...extra };
+  const session = createEvaluationSession(options); devices.push({ app, auth, db }); controllers.push(session);
+  session.start(); await waitFor(session, 'ready');
+  return { app, auth, db, session, options, api };
 }
-const blocked = session => new Promise((resolve, reject) => {
-  if (session.getState().status === 'needs-configuration') { resolve(); return; }
-  const timer = setTimeout(() => reject(new Error('Session was not blocked')), 10000);
-  const stop = session.subscribe(state => { if (state.status === 'needs-configuration') { clearTimeout(timer); stop(); resolve(); } });
-});
 
-test('the real local Auth SDK provisions two installations for the same coordinator, refreshes and restores without passwords', async () => {
+test('two clean installations automatically authenticate through the real local HTTP function and SDKs without provisioning', async () => {
   const a = await device('A'), b = await device('B');
-  expect(a.auth.currentUser.uid).toBe(uid); expect(b.auth.currentUser.uid).toBe(uid);
-  expect(a.session.getState().role).toBe('coordenador'); expect(b.session.getState().role).toBe('coordenador');
-  const token = await getIdTokenResult(a.auth.currentUser, true);
-  expect(token.claims.evaluationInstallation).toBe('evaluation-device-A-1234567890');
-  expect(token.claims.sismorcegoEvaluationAccount).toBe(true);
-  // Push backend is deliberately disabled in the current app/rules. Do not
-  // weaken those rules just to make this test write fake tokens successfully.
-  await expect(setDoc(doc(a.db, 'usuarios', uid, 'dispositivos', 'A'), { token: 'fictitious-A', enabled: true })).rejects.toMatchObject({ code: 'permission-denied' });
-  await expect(setDoc(doc(b.db, 'usuarios', uid, 'dispositivos', 'B'), { token: 'fictitious-B', enabled: true })).rejects.toMatchObject({ code: 'permission-denied' });
-  a.session.dispose();
-  const restored = createEvaluationSession(a.options); controllers.push(restored);
-  await restored.start(); await restored.revalidate();
-  expect(restored.getState().status).toBe('ready');
-  await signOut(a.auth); await blocked(restored);
+  expect(a.auth.currentUser.uid).toBe(EVALUATION_UID); expect(b.auth.currentUser.uid).toBe(EVALUATION_UID);
+  expect((await getDocsFromServer(collectionGroup(a.db,'itens'))).empty).toBe(false);
+  await expect(setDoc(doc(a.db,'usuarios',EVALUATION_UID,'dispositivos','A'),{token:'fake',enabled:true})).rejects.toMatchObject({code:'permission-denied'});
+  a.session.dispose(); const restored = createEvaluationSession(a.options); controllers.push(restored); restored.start(); await waitFor(restored,'ready');
+  expect(a.api.issue).toHaveBeenCalledTimes(1); expect(b.session.getState().status).toBe('ready');
+});
+test('server-time expiration denies records even with a valid ID token, and remote extension restores the existing session', async () => {
+  const a = await device('expiry');
+  await config.update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) }); await a.session.revalidate();
+  expect(a.session.getState().status).toBe('expired'); expect(a.auth.currentUser.uid).toBe(EVALUATION_UID);
+  await expect(getDocsFromServer(collectionGroup(a.db,'itens'))).rejects.toMatchObject({code:'permission-denied'});
+  await expect(updateDoc(doc(a.db,'usuarios',EVALUATION_UID),{email:'fake@example.invalid'})).rejects.toMatchObject({code:'permission-denied'});
+  await config.update({ expiresAt: Timestamp.fromMillis(Date.now() + 60 * 86400000) }); await a.session.revalidate();
+  expect(a.session.getState().status).toBe('ready'); expect(a.api.issue).toHaveBeenCalledTimes(1);
+  expect((await getDocsFromServer(collectionGroup(a.db,'itens'))).empty).toBe(false);
+});
+test('suspension denies data and cannot be changed by the evaluator; reactivation is automatic', async () => {
+  const a = await device('suspension');
+  expect((await getDocFromServer(doc(a.db,'configuracoes','avaliacaoCoordenadores'))).exists()).toBe(true);
+  await expect(updateDoc(doc(a.db,'configuracoes','avaliacaoCoordenadores'),{enabled:true})).rejects.toMatchObject({code:'permission-denied'});
+  await config.update({enabled:false}); await a.session.revalidate(); expect(a.session.getState().status).toBe('suspended');
+  await expect(getDocsFromServer(collectionGroup(a.db,'itens'))).rejects.toMatchObject({code:'permission-denied'});
+  await config.update({enabled:true}); await a.session.revalidate(); expect(a.session.getState().status).toBe('ready');
+});
+test.each(['disabled','role','claim'])('server %s revocation prevents automatic token issuance and recovers after administrative reauthorization', async kind => {
+  const a = await device(kind);
+  if(kind==='disabled')await adminAuth(admin).updateUser(EVALUATION_UID,{disabled:true});
+  if(kind==='role')await adminFirestore(admin).doc(`usuarios/${EVALUATION_UID}`).update({role:'acs'});
+  if(kind==='claim')await adminAuth(admin).setCustomUserClaims(EVALUATION_UID,{});
+  await a.session.revalidate(true); expect(a.session.getState().status).toBe('blocked');
+  const response = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{"version":1}'});
+  expect((await response.json()).customToken).toBeUndefined();
+  await adminAuth(admin).updateUser(EVALUATION_UID,{disabled:false});
+  await adminFirestore(admin).doc(`usuarios/${EVALUATION_UID}`).update({role:'coordenador'});
+  await adminAuth(admin).setCustomUserClaims(EVALUATION_UID,{sismorcegoEvaluationAccount:true});
+  await a.session.revalidate(true); expect(a.session.getState().status).toBe('ready');
+});
+test('loss of a local Firebase session is recovered automatically while another installation stays connected', async () => {
+  const a = await device('lost'), b = await device('other'); await signOut(a.auth);
+  await waitFor(a.session,'ready');
+  expect(a.auth.currentUser.uid).toBe(EVALUATION_UID); expect(a.api.issue).toHaveBeenCalledTimes(2);
   expect(b.session.getState().status).toBe('ready');
-  expect((await getIdTokenResult(b.auth.currentUser, true)).claims.sismorcegoEvaluationAccount).toBe(true);
 });
-
-test('a server-side role removal blocks the installed session without a login fallback', async () => {
-  const a = await device('role-change');
-  await adminFirestore(admin).doc(`usuarios/${uid}`).update({ role: 'acs' });
-  await blocked(a.session);
-  expect(a.session.getState().user).toBeNull(); expect(a.session.getState().role).toBeNull();
-});
-
-test('a disabled Auth user cannot renew the session and is blocked', async () => {
-  const a = await device('disabled');
-  await adminAuth(admin).updateUser(uid, { disabled: true });
-  await a.session.revalidate(true); await blocked(a.session);
-  expect(a.session.getState().user).toBeNull();
+test('offline lease expiration hides protected UI without deleting the Firebase session; reconnect restores it', async () => {
+  let online = true, elapsed = 0;
+  const a = await device('offline',{online:async()=>online,clock:()=>elapsed}); online=false; elapsed=61000;
+  await a.session.revalidate(); expect(a.session.getState().status).toBe('offline'); expect(a.auth.currentUser.uid).toBe(EVALUATION_UID);
+  online=true; await a.session.revalidate(); expect(a.session.getState().status).toBe('ready');
 });

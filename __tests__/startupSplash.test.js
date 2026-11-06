@@ -300,9 +300,9 @@ test('reduced motion does not add a login cover, delay or Back-handler after sta
 });
 
 
-test('evaluation opens only setup when unprovisioned and enters the coordinator without replaying startup', async () => {
+test('evaluation shows only automatic access status and enters the coordinator without replaying startup', async () => {
   mockEvaluation = true;
-  mockAuth = { user: null, loading: false, evaluation: { status: 'needs-configuration' } };
+  mockAuth = { user: null, loading: false, evaluation: { status: 'checking' } };
   await completeStartup();
   expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
   expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
@@ -310,7 +310,7 @@ test('evaluation opens only setup when unprovisioned and enters the coordinator 
   await update(<Navigation />);
   expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
   expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
-  mockAuth = { ...mockAuth, user: null, role: null, evaluation: { status: 'needs-configuration' } };
+  mockAuth = { ...mockAuth, user: null, role: null, evaluation: { status: 'expired' } };
   await update(<Navigation />);
   expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
   expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(0);
