@@ -65,6 +65,26 @@ test('avatar persists locally without submitting unsaved profile fields to Fireb
   expect(props.onSaveAccountProfile).not.toHaveBeenCalled();
 });
 
+test.each(['sub-account', 'sub-password'])('evaluation %s masks email, locks credentials and keeps only local photo actions', async activeSubscreen => {
+  const props = { ...defaults(), activeSubscreen, managedAccount: true,
+    accountProfile: { username: 'Sismorcego Teste', email: 'private@example.invalid' } };
+  await render(props);
+  const fields = tree.root.findAllByType(TextInput);
+  expect(fields.map(field => field.props.value)).toEqual(['Sismorcego', '************']);
+  fields.forEach(field => expect(field.props.editable).toBe(false));
+  expect(JSON.stringify(tree.toJSON())).not.toContain('private@example.invalid');
+  expect(texts()).not.toContain('Alterar senha'); expect(texts()).not.toContain('Salvar alterações');
+  pickRegistroPhoto.mockResolvedValue({ localUri: 'file:///eval-photo.jpg' }); await press('Galeria');
+  expect(props.onSaveAvatarPhoto).toHaveBeenCalledWith('file:///eval-photo.jpg');
+  expect(props.onSaveAccountProfile).not.toHaveBeenCalled();
+});
+
+test('evaluation menu keeps account, settings, guide and information while omitting sign out', async () => {
+  await render({ ...defaults(), activeSubscreen: null, managedAccount: true });
+  expect(texts()).toContain('Minha conta'); expect(texts()).toContain('Configurações');
+  expect(texts()).not.toContain('Sair'); expect(texts()).not.toContain('Editar perfil, foto e senha de acesso');
+});
+
 const saveAccountButton = () => tree.root.findAll(node => node.props.accessibilityRole === 'button' &&
   typeof node.props.onPress === 'function' && node.findAllByType(RNText).some(text => text.props.children === 'Salvar alterações'))[0];
 test('account save is gray and guarded until a meaningful edit, disables on revert and after saving', async () => {

@@ -61,6 +61,7 @@ import SpotlightGuideModal, { SPOTLIGHT_STORAGE_KEY } from '../ui/SpotlightGuide
 import { completeRecordDraft, getRecordDraftIdentity } from '../services/recordDraftIdentity';
 import { isRecordOwner, canModifyRecord, assertCanModifyRecord, recordIdentity } from '../services/recordLifecycle';
 import { registroIsoDate } from '../services/registroDate';
+import { COORDINATOR_EVALUATION } from '../services/appEnvironment';
 
 function createDefaultNotificationDate() {
   const iso = registroIsoDate(new Date());
@@ -95,10 +96,10 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
 
   // Persistent data state
   const [records, setRecords] = useState([]);
-  const [reporterName, setReporterName] = useState(user?.displayName || '');
+  const [reporterName, setReporterName] = useState(COORDINATOR_EVALUATION ? '' : user?.displayName || '');
   const [accountProfile, setAccountProfile] = useState({
-    username: user?.displayName || '',
-    email: user?.email || '',
+    username: COORDINATOR_EVALUATION ? 'Sismorcego' : user?.displayName || '',
+    email: COORDINATOR_EVALUATION ? '************' : user?.email || '',
     photoUri: null,
   });
   const [doubts, setDoubts] = useState([]);
@@ -218,6 +219,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
   const signOutConfirmed = useRef(false);
   const signingOut = useRef(false);
   const requestSignOut = () => {
+    if (COORDINATOR_EVALUATION) return;
     if (signOutDialog !== 'closed' || signingOut.current) return;
     signOutConfirmed.current = false;
     setSignOutDialog('open');
@@ -787,6 +789,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
           {activeTab === 'new' && (
             <NovaNotificacaoScreen
               reporterName={reporterName}
+              reporterRole={COORDINATOR_EVALUATION ? 'Coordenador' : undefined}
               onOpenReporterModal={() => setReporterModalVisible(true)}
               onOpenVictimInfo={(title, message) =>
                 setInfoModalState({ visible: true, title, message })
@@ -867,6 +870,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
 
           {activeTab === 'more' && (
               <MaisScreens
+                managedAccount={COORDINATOR_EVALUATION}
                 bottomInset={bottomInset}
                 activeSubscreen={activeMaisSubscreen}
                 keyboardVisible={keyboardVisible}
@@ -875,6 +879,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
                 setDoubtsView={setDoubtsView}
                 accountProfile={accountProfile}
                 onSaveAccountProfile={async (nextAcc) => {
+                  if (COORDINATOR_EVALUATION) throw new Error('Esta conta é gerenciada pela equipe responsável pela avaliação.');
                   if (!nextAcc.username.trim()) throw new Error('Informe seu nome.');
                   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextAcc.email.trim())) throw new Error('Informe um email válido.');
                   const current = await loadAccountProfile();

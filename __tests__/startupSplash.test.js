@@ -5,8 +5,9 @@ import StartupSplash, { MIN_SPLASH_MS, SPLASH_FADE_MS } from '../src/navigation/
 import Navigation from '../src/navigation';
 import { SCREEN_FADE_IN_MS, SCREEN_FADE_OUT_MS, screenFadeTiming } from '../src/ui/screenFade';
 
-let mockAuth, mockReducedMotion = false, mockColors, mockHomologation = false;
-jest.mock('../src/services/appEnvironment', () => ({ get REAL_FIREBASE_HOMOLOGATION() { return mockHomologation; } }));
+let mockAuth, mockReducedMotion = false, mockColors, mockHomologation = false, mockEvaluation = false;
+jest.mock('../src/services/appEnvironment', () => ({ get REAL_FIREBASE_HOMOLOGATION() { return mockHomologation; }, get COORDINATOR_EVALUATION() { return mockEvaluation; } }));
+jest.mock('../src/pages/Auth/EvaluationSetupScreen', () => 'EvaluationSetupScreen');
 jest.mock('../src/hooks/useAuth', () => () => mockAuth);
 jest.mock('../src/ui/useReduceMotion', () => () => mockReducedMotion);
 jest.mock('../src/hooks/useSpeakOnMount', () => jest.fn());
@@ -28,7 +29,7 @@ const fade = () => animations.filter(animation => animation.config.toValue === 0
 const finish = async animation => act(async () => animation.finish());
 const splashLayer = () => tree.root.findAllByType(View).find(node => node.props.testID === 'startup-splash');
 beforeEach(() => {
-  jest.useFakeTimers(); animations = []; mockReducedMotion = false; mockHomologation = false;
+  jest.useFakeTimers(); animations = []; mockReducedMotion = false; mockHomologation = false; mockEvaluation = false;
   mockColors = { brandDeep: '#2E1065', onBrand: '#FFFFFF', canvas: '#FFFFFF' };
   mockAuth = { user: null, loading: false }; onExited = jest.fn(); removeBack = jest.fn();
   jest.spyOn(BackHandler, 'addEventListener').mockImplementation((event, callback) => { back = callback; return { remove: removeBack }; });
@@ -296,4 +297,30 @@ test('reduced motion does not add a login cover, delay or Back-handler after sta
   expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
   expect(animations).toHaveLength(0);
   expect(BackHandler.addEventListener).toHaveBeenCalledTimes(handlers);
+});
+
+
+test('evaluation opens only setup when unprovisioned and enters the coordinator without replaying startup', async () => {
+  mockEvaluation = true;
+  mockAuth = { user: null, loading: false, evaluation: { status: 'needs-configuration' } };
+  await completeStartup();
+  expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
+  mockAuth = { user: { uid: 'shared' }, role: 'coordenador', loading: false, evaluation: { status: 'ready' } };
+  await update(<Navigation />);
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
+  expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
+  mockAuth = { ...mockAuth, user: null, role: null, evaluation: { status: 'needs-configuration' } };
+  await update(<Navigation />);
+  expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(0);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
+});
+
+test('evaluation rejects a non-coordinator or an unapproved restored user at the navigation boundary', async () => {
+  mockEvaluation = true;
+  mockAuth = { user: { uid: 'other' }, role: 'acs', loading: false, evaluation: { status: 'ready' } };
+  await completeStartup();
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(0);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
 });

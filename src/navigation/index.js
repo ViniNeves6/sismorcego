@@ -12,11 +12,14 @@ import useReduceMotion from '../ui/useReduceMotion';
 import useAccessibility from '../hooks/useAccessibility';
 import { observeStartupPerformance } from '../services/devicePerformance';
 import { ScreenTransitionReadyContext } from '../ui/ScreenTransitionContext';
+import { COORDINATOR_EVALUATION } from '../services/appEnvironment';
+import EvaluationSetupScreen from '../pages/Auth/EvaluationSetupScreen';
 
 const Stack = createNativeStackNavigator();
 
 export default function Navigation() {
-  const { user, loading } = useAuth();
+  const { user: authenticatedUser, role, evaluation, loading } = useAuth();
+  const user = COORDINATOR_EVALUATION && (evaluation?.status !== 'ready' || role !== 'coordenador') ? null : authenticatedUser;
   const theme = useTheme();
   const reduceMotion = useReduceMotion();
   const { performance } = useAccessibility();
@@ -53,7 +56,7 @@ export default function Navigation() {
                 <Stack.Screen name="Inicio" component={SismorcegoShell} />
               </Stack.Navigator>
             ) : <View style={styles.fill} testID="startup-login-layout" onLayout={readyStartupLogin}>
-              <AuthStack />
+              {COORDINATOR_EVALUATION ? <EvaluationSetupScreen /> : <AuthStack />}
             </View>}
           </NavigationContainer> : startupComplete ? <View style={styles.loading}>
             <ActivityIndicator color="#6824D6" accessibilityLabel="Carregando sessão" />

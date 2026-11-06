@@ -9,6 +9,7 @@ import { editStoredRecord, removeOrCancelStoredRecord, acceptRemoteRecordVersion
 import { getRecordDraftIdentity } from './recordDraftIdentity';
 import { saveLocalProfilePhoto } from './accountProfile';
 import { LOCAL_TEST_MODE, LOCAL_TEST_USER } from './debugTestSession';
+import { COORDINATOR_EVALUATION } from './appEnvironment';
 
 const requireUser = () => {
   if (LOCAL_TEST_MODE) return LOCAL_TEST_USER;
@@ -76,6 +77,7 @@ export const triggerSyncRecords = () => LOCAL_TEST_MODE
 export async function loadReporterName() {
   const key = keyFor('reporter');
   const saved = await AsyncStorage.getItem(key);
+  if (COORDINATOR_EVALUATION) return saved && !['Sismorcego', 'Sismorcego Teste', requireUser().displayName].includes(saved.trim()) ? saved : '';
   if (saved) return saved;
   if (LOCAL_TEST_MODE) return LOCAL_TEST_USER.displayName;
   const legacy = await AsyncStorage.getItem('@sismorcego:html_reporter_v1');
@@ -106,7 +108,8 @@ export async function loadAccountProfile() {
       if (oldAccount) await AsyncStorage.removeItem('@sismorcego:html_account_v1');
     }
   }
-  return { username: user.displayName || '', email: user.email || '', photoUri: photoUri || user.photoURL || null };
+  return { username: COORDINATOR_EVALUATION ? 'Sismorcego' : user.displayName || '',
+    email: COORDINATOR_EVALUATION ? '************' : user.email || '', photoUri: photoUri || user.photoURL || null };
 }
 // Nome, email e senha são atualizados pelo useAuth, nunca por este cache.
 export async function saveAccountProfile(profile) {

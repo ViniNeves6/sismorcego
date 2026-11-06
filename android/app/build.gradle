@@ -87,6 +87,8 @@ android {
         versionName "1.0"
         buildConfigField "boolean", "SISMORCEGO_REAL_FIREBASE", "false"
         buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "false"
+        // Exclusivo desta branch de avaliação; nunca habilita acesso sem Auth.
+        buildConfigField "boolean", "SISMORCEGO_COORDINATOR_EVALUATION", "true"
     }
     signingConfigs {
         debug {

@@ -4,7 +4,7 @@ import { deleteDoc, getDocs, setDoc } from 'firebase/firestore';
 import { acceptRemoteRecordVersion } from '../src/services/recordMutations';
 import { auth } from '../src/services/firebase';
 import { addToQueue } from '../src/services/offlineQueue';
-import { addNewRecordToStorage, loadRecordsFromStorage, isRedesignSample, loadAccountProfile, updateRecordInStorage } from '../src/services/redesignData';
+import { addNewRecordToStorage, loadRecordsFromStorage, isRedesignSample, loadAccountProfile, loadReporterName, saveReporterNameToStorage, updateRecordInStorage } from '../src/services/redesignData';
 import { syncPendingRegistros } from '../src/services/syncRegistros';
 import { mergeByRecordId, excluirRegistro } from '../src/services/historico';
 import { toRecordView } from '../src/services/registroAdapter';
@@ -14,6 +14,8 @@ import { buildAlertContract } from '../src/services/alertContract';
 
 let mockRows = [];
 let mockCloud = new Map();
+let mockEvaluation = false;
+jest.mock('../src/services/appEnvironment', () => ({ get COORDINATOR_EVALUATION() { return mockEvaluation; } }));
 // Exercita persistência e sincronização reais com fronteiras nativas simuladas.
 jest.mock('../src/services/debugTestSession', () => ({ LOCAL_TEST_MODE: false }));
 jest.mock('../src/services/firebase', () => ({ auth: { currentUser: { uid: 'owner' } }, db: {} }));
@@ -48,6 +50,7 @@ jest.mock('../src/services/offlineQueue', () => ({
 }));
 let counter = 0;
 beforeEach(async () => {
+  mockEvaluation = false;
   jest.clearAllMocks();
   await AsyncStorage.clear();
   auth.currentUser = { uid: `owner-${++counter}`, displayName: 'Ana', email: 'ana@real.org' };
@@ -296,4 +299,22 @@ test('local photographs remain available after cloud refresh without uploading b
   const merged=toRecordView(mergeByRecordId([cloud],[local])[0]);
   expect(merged.city).toBe('Servidor atualizado');expect(merged.photo.uri).toBe('file:///local.jpg');
   expect(toRecordView(mergeByRecordId([{...cloud,photoBase64:'LEGACY'}],[{...local,photoHidden:true}])[0]).photo).toBeNull();
+});
+
+
+test('shared evaluation UID retains different occurrence authors and masks only the account presentation', async () => {
+  mockEvaluation = true; auth.currentUser = { uid: 'shared', displayName: 'Sismorcego Teste', email: 'private@example.invalid' };
+  expect(await loadReporterName()).toBe('');
+  expect(await loadAccountProfile()).toMatchObject({ username: 'Sismorcego', email: '************' });
+  await saveReporterNameToStorage('Coordenadora Ana');
+  const first = await addNewRecordToStorage({ id: 'shared-ana', victimKey: 'aves', city: 'Belém', reporter: await loadReporterName(), details: {} });
+  await saveReporterNameToStorage('Coordenador Bruno');
+  const second = await addNewRecordToStorage({ id: 'shared-bruno', victimKey: 'aves', city: 'Belém', reporter: await loadReporterName(), details: {} });
+  expect(first.reporter).toBe('Coordenadora Ana'); expect(second.reporter).toBe('Coordenador Bruno');
+  expect(mockRows.map(row => row.uid)).toEqual(['shared','shared']);
+  await syncPendingRegistros();
+  expect(mockCloud.get('registros/shared/itens/shared-ana').nomeAcs).toBe('Coordenadora Ana');
+  expect(mockCloud.get('registros/shared/itens/shared-bruno').nomeAcs).toBe('Coordenador Bruno');
+  expect(toRecordView(mockCloud.get('registros/shared/itens/shared-ana')).reporter).toBe('Coordenadora Ana');
+  expect(auth.currentUser.displayName).toBe('Sismorcego Teste');
 });

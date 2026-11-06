@@ -45,6 +45,7 @@ const VICTIM_BOTTOM_PADDING = 110;
 
 export default function NovaNotificacaoScreen({
   reporterName,
+  reporterRole = 'ACS Notificador Municipal',
   onOpenReporterModal,
   onOpenVictimInfo,
   activeVictimSubscreen,
@@ -494,10 +495,10 @@ export default function NovaNotificacaoScreen({
               </View>
               <View style={styles.reporterMeta}>
                 <Text style={styles.reporterName} numberOfLines={1}>
-                  {reporterName}
+                  {reporterName || 'Informe o responsável'}
                 </Text>
                 <Text style={styles.reporterRole}>
-                  Perfil: ACS Notificador Municipal
+                  Perfil: {reporterRole}
                 </Text>
               </View>
             </View>
