@@ -8,14 +8,12 @@ import { ThemeProvider } from './src/theme/ThemeProvider';
 import { ToastProvider } from './src/ui';
 import RootNavigation from './src/navigation';
 import { initDB } from './src/database/db';
-import useKeyboardVisible from './src/hooks/useKeyboardVisible';
 
 if (Platform.OS === 'android' && !global.nativeFabricUIManager && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 export default function App() {
-  const keyboardVisible = useKeyboardVisible();
   useEffect(() => {
     initDB();
   }, []);
@@ -23,7 +21,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <KeyboardAvoidingView testID="app-keyboard-viewport" style={styles.fill}
-        behavior="padding" enabled={Platform.OS === 'ios' || keyboardVisible}>
+        behavior="padding" enabled={Platform.OS === 'ios'}>
         <AuthProvider>
           <AccessibilityProvider>
             <ThemeProvider>

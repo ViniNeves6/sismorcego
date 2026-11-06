@@ -6,6 +6,7 @@ import { addToQueue, loadQueue } from './offlineQueue';
 import { toRecordView, toStoredRecord } from './registroAdapter';
 import { appendRecordAudit, assertRecordOwner, assertCanModifyRecord, hasServerCopy, isCancelledRecord, recordIdentity } from './recordLifecycle';
 import { newRecordId, withRecordLock } from './recordDraftIdentity';
+import { hasRecordEditChanges } from './editChanges';
 
 const actor = () => LOCAL_TEST_MODE ? LOCAL_TEST_USER : auth?.currentUser;
 const assertActiveActor = user => {
@@ -34,7 +35,9 @@ export function editStoredRecord(record) {
     const before = remote ? { ...current, ...remote, hasServerCopy:true, baseServerRevision:remote.serverRevision || 0,
       serverRevision:remote.serverRevision || 0, syncConflict:null, auditEvents:current.auditEvents || [] } : current;
     if (isCancelledRecord(before)) throw new Error('Um registro cancelado está disponível somente para consulta.');
-    const next = appendRecordAudit(before, { ...toStoredRecord({ ...record, id: String(before.recordId), _raw: before }, user.uid),
+    const edited = toStoredRecord({ ...record, id: String(before.recordId), _raw: before }, user.uid);
+    if (!hasRecordEditChanges(toRecordView(before), toRecordView(edited))) return toRecordView(current);
+    const next = appendRecordAudit(before, { ...edited,
       hasServerCopy: hasServerCopy(before), lifecycleStatus: 'active', syncConflict:null }, user, 'edit');
     await addToQueue(next, { returnQueue: false });
     DeviceEventEmitter.emit('registros:changed');

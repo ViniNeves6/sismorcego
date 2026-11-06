@@ -2,7 +2,7 @@ import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword, updateEmail, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getDoc } from 'firebase/firestore';
 import { auth } from '../src/services/firebase';
 import useAuth, { AuthProvider } from '../src/hooks/useAuth';
@@ -53,6 +53,23 @@ test('password update propagates the actual recent-login error', async () => {
   updatePassword.mockRejectedValueOnce({ code: 'auth/requires-recent-login' });
   await expect(session.updateUser({ senha: 'nova123' })).rejects.toThrow('Refaça login');
   expect(updatePassword).toHaveBeenCalledWith(auth.currentUser, 'nova123');
+});
+
+test('profile persistence ignores unchanged values even when called directly', async () => {
+  auth.currentUser = { uid: 'owner', displayName: 'Ana Lima', email: 'ana@example.test' };
+  AsyncStorage.setItem.mockClear();
+  await act(async () => session.updateUser({ nome: ' Ana   Lima ', email: ' ANA@EXAMPLE.TEST ' }));
+  expect(updateProfile).not.toHaveBeenCalled(); expect(updateEmail).not.toHaveBeenCalled();
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+});
+
+test('an email-only update never writes the unchanged display name or reporter cache', async () => {
+  auth.currentUser = { uid: 'owner', displayName: 'Ana', email: 'ana@example.test' };
+  AsyncStorage.setItem.mockClear();
+  await act(async () => session.updateUser({ nome: ' Ana ', email: ' NEW@EXAMPLE.TEST ' }));
+  expect(updateEmail).toHaveBeenCalledWith(auth.currentUser, 'new@example.test');
+  expect(updateProfile).not.toHaveBeenCalled();
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
 });
 
 test('registration stores displayName in Auth, keeps the optional photo local and grants only ACS', async () => {

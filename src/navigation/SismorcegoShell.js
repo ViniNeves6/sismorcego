@@ -41,7 +41,9 @@ import {
 } from '../services/sismorcegoData';
 import useAccessibility from '../hooks/useAccessibility';
 import useKeyboardVisible from '../hooks/useKeyboardVisible';
+import KeyboardDock from '../ui/KeyboardDock';
 import useAuth from '../hooks/useAuth';
+import { hasProfileChanges, normalizedProfile, normalizeEmail, normalizeName } from '../services/editChanges';
 import NetInfo from '@react-native-community/netinfo';
 import { createDoubt, deleteDoubt, subscribeDoubts } from '../services/duvidas';
 import { loadDoubtDrafts, removeDoubtDraft } from '../services/doubtDrafts';
@@ -867,6 +869,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
               <MaisScreens
                 bottomInset={bottomInset}
                 activeSubscreen={activeMaisSubscreen}
+                keyboardVisible={keyboardVisible}
                 setActiveSubscreen={setActiveMaisSubscreen}
                 doubtsView={doubtsView}
                 setDoubtsView={setDoubtsView}
@@ -874,13 +877,19 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
                 onSaveAccountProfile={async (nextAcc) => {
                   if (!nextAcc.username.trim()) throw new Error('Informe seu nome.');
                   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextAcc.email.trim())) throw new Error('Informe um email válido.');
-                  const nome = nextAcc.username.trim();
-                  const email = nextAcc.email.trim();
-                  if (nome !== user.displayName || email !== user.email) await updateUser({ nome, email });
-                  await saveAccountProfile(nextAcc);
-                  setAccountProfile(await loadAccountProfile());
-                  await saveReporterNameToStorage(nome);
-                  setReporterName(nome);
+                  const current = await loadAccountProfile();
+                  const next = normalizedProfile(nextAcc);
+                  if (!hasProfileChanges(current, next)) return current;
+                  const nameChanged = next.username !== normalizeName(current.username);
+                  const emailChanged = next.email !== normalizeEmail(current.email);
+                  if (nameChanged || emailChanged) await updateUser({
+                    ...(nameChanged ? { nome: next.username } : {}), ...(emailChanged ? { email: next.email } : {}),
+                  });
+                  if (next.photoUri !== (current.photoUri || null)) await saveAccountProfile({ photoUri: next.photoUri });
+                  const loaded = await loadAccountProfile();
+                  setAccountProfile(loaded);
+                  if (nameChanged) { await saveReporterNameToStorage(next.username); setReporterName(next.username); }
+                  return loaded;
                 }}
                 onSaveAvatarPhoto={async photoUri => {
                   await saveAccountProfile({ photoUri });
@@ -915,7 +924,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
         </AnimatedScreenTransition>
 
         {/* The dock stays out of the keyboard viewport while typing. */}
-        {!keyboardVisible && <View
+        <KeyboardDock hidden={keyboardVisible}
           testID="bottom-dock"
           style={[
             styles.bottomDockContainer,
@@ -1075,7 +1084,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
               </Text>
             </Pressable>
           </View>
-        </View>}
+        </KeyboardDock>
 
         {/* OVERLAYS (Exact z-index hierarchy from HTML) */}
 

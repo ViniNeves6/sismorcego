@@ -21,6 +21,7 @@ import { LOCAL_TEST_MODE, LOCAL_TEST_USER, LOCAL_TEST_ROLE } from '../services/d
 import { isSharedPhotoUrl, saveLocalProfilePhoto, validateRegistration } from '../services/accountProfile';
 import { detachPushDevice } from '../services/pushDevices';
 import { ensureAccountRole } from '../services/accountBootstrap';
+import { normalizeName, normalizeEmail } from '../services/editChanges';
 
 // Busca o papel do usuário (usuarios/{uid}.role); cria o doc como "acs" se não existir.
 const ensureUserRole = (uid,email) => ensureAccountRole(db,uid,email);
@@ -176,18 +177,25 @@ export const AuthProvider = ({ children }) => {
     ensureAuthEnabled();
     if (!auth.currentUser) throw new Error("Nenhum usuário logado.");
     if (foto && !isSharedPhotoUrl(foto)) throw new Error('A foto local deve ser salva no aparelho até a integração com Storage estar disponível.');
+    const currentUser = auth.currentUser;
+    const nextName = nome === undefined ? undefined : normalizeName(nome);
+    const nextEmail = email === undefined ? undefined : normalizeEmail(email);
+    const nameChanged = nextName !== undefined && nextName !== normalizeName(currentUser.displayName);
+    const emailChanged = Boolean(nextEmail) && nextEmail !== normalizeEmail(currentUser.email);
+    const photoChanged = foto !== undefined && (foto ?? currentUser.photoURL ?? null) !== (currentUser.photoURL || null);
+    if (!nameChanged && !emailChanged && !photoChanged && !senha) return;
 
     try {
-      if (nome !== undefined || foto !== undefined) {
-        await updateProfile(auth.currentUser, {
-          displayName: nome ?? auth.currentUser.displayName,
-          photoURL: foto ?? auth.currentUser.photoURL,
+      if (nameChanged || photoChanged) {
+        await updateProfile(currentUser, {
+          ...(nameChanged ? { displayName: nextName } : {}),
+          ...(photoChanged ? { photoURL: foto ?? currentUser.photoURL } : {}),
         });
       }
 
-      if (email && email !== auth.currentUser.email) {
+      if (emailChanged) {
         try {
-          await updateEmail(auth.currentUser, email);
+          await updateEmail(currentUser, nextEmail);
         } catch (err) {
           if (err.code === "auth/requires-recent-login") {
             throw new Error("⚠️ Refaça login antes de alterar o email.");
@@ -209,7 +217,7 @@ export const AuthProvider = ({ children }) => {
 
       // Atualiza estado local com o usuário atualizado
       setUser({ ...auth.currentUser });
-      if (nome !== undefined) await AsyncStorage.setItem(`@sismorcego:${auth.currentUser.uid}:reporter`, nome.trim());
+      if (nameChanged) await AsyncStorage.setItem(`@sismorcego:${auth.currentUser.uid}:reporter`, nextName);
     } catch (error) {
       logger.error("useAuth: updateUser failed", error);
       throw error;

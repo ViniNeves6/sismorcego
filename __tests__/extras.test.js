@@ -153,8 +153,19 @@ describe('Conta', () => {
   test('mostra o erro do servidor num aviso, sem travar a tela', async () => {
     mockUpdateUser.mockRejectedValue(new Error('Refaça login antes de alterar o e-mail.'));
     const tree = await render(<Conta />);
+    await type(tree, 'E-mail', 'novo@example.invalid');
     await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Salvar alterações' });
     expect(texts(tree)).toContain('Refaça login antes de alterar o e-mail.');
+  });
+
+  test('ignora salvamento sem mudanças e desabilita novamente quando a edição é desfeita', async () => {
+    const tree = await render(<Conta />);
+    const save = () => tree.root.findAllByProps({ accessibilityRole: 'button', accessibilityLabel: 'Salvar alterações' })[0];
+    expect(save().props.disabled).toBe(true);
+    await press(tree, { accessibilityRole: 'button', accessibilityLabel: 'Salvar alterações' });
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    await type(tree, 'Nome de usuário', 'Ana Souza'); expect(save().props.disabled).toBe(false);
+    await type(tree, 'Nome de usuário', '  Ana   Lima '); expect(save().props.disabled).toBe(true);
   });
 });
 

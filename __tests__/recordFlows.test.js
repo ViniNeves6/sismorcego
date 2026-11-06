@@ -155,6 +155,15 @@ test('editing preserves the original responsible exactly and rejects changing th
   await updateRecordInStorage({ ...original, city: 'Curuçá' });
   expect(mockRows[0]).toMatchObject({ nomeAcs: '  Nome original  ', nomeNotificador: '  Nome original  ', notificadorTipo: 'coordenador' });
 });
+
+test.each(['pending', 'synced'])('saving an unchanged %s record does not queue a write, audit or upload', async status => {
+  mockRows = [{ ...pending('no-op'), status, nomeAcs: 'Ana', comunidade: 'Centro', dataMordedura: '2026-10-20' }];
+  const original = toRecordView(mockRows[0]);
+  await updateRecordInStorage({ ...original, city: ' Belém ', details: { ...original.details, unusedOptional: '' } });
+  expect(addToQueue).not.toHaveBeenCalled(); expect(setDoc).not.toHaveBeenCalled();
+  expect(mockRows[0].auditEvents).toBeUndefined();
+  expect(mockRows[0].localRevision).toBe('v1'); expect(mockRows[0].status).toBe(status);
+});
 test('offline sync reports offline and never claims a successful upload', async () => {
   mockRows = [pending('r1')];
   NetInfo.fetch.mockResolvedValue({ isConnected: false });

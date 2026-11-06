@@ -172,10 +172,12 @@ test.each(['acs', 'coordenador'])('keyboard hides and restores the dock without 
       if (label === 'Notificar') await act(async () => tree.root.findByType(screen).props.setCity('Curuçá'));
       const retained = tree.root.findByType(screen);
       await act(async () => { visible.mockReturnValue(true); listeners.keyboardDidShow({ endCoordinates: { height: 300, screenY: 500 } }); });
-      expect(dock()).toBeUndefined(); expect(tree.root.findByType(screen)).toBe(retained);
+      expect(dock().props.hidden).toBe(true);
+      expect(tree.root.findByType(screen)).toBe(retained);
       if (label === 'Notificar') expect(retained.props.city).toBe('Curuçá');
       await act(async () => { visible.mockReturnValue(false); listeners.keyboardDidHide({ endCoordinates: { height: 0, screenY: 800 } }); });
       expect(StyleSheet.flatten(dock().props.style)).toEqual(initialDockStyle);
+      expect(dock().props.hidden).toBe(false);
       expect(tree.root.findByType(screen)).toBe(retained);
     }
     await act(async () => tree.unmount()); tree = null;

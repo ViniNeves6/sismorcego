@@ -3,6 +3,7 @@ import { AccessibilityInfo, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createSpeechController } from '../services/accessibilitySpeech';
 import logger from '../utils/logger';
+import useDevicePerformance from './useDevicePerformance';
 
 const KEY = '@sismorcego:accessibility';
 const defaults = { fontScale: 1, highContrast: false, ttsEnabled: false, reduceMotion: false };
@@ -14,6 +15,7 @@ export function normalizeAccessibilitySettings(value) {
 }
 
 export function AccessibilityProvider({ children }) {
+  const performance = useDevicePerformance();
   const [settings, setSettings] = useState(defaults);
   const [systemReduceMotion, setSystemReduceMotion] = useState(false);
   const [ttsError, setTtsError] = useState(null);
@@ -112,17 +114,18 @@ export function AccessibilityProvider({ children }) {
     }
   }, []);
   const speak = useCallback(text => { clearTimeout(announcementTimer.current); return controller.current.speak(text); }, []);
-  const effectiveMotion = settings.reduceMotion || systemReduceMotion;
+  const effectiveMotion = settings.reduceMotion || systemReduceMotion || performance.automaticReduceMotion;
   const value = useMemo(() => ({
-    ...settings, provided: true, reduceMotion: effectiveMotion, systemReduceMotion,
-    settings: { ...settings, reduceMotion: effectiveMotion, preferredReduceMotion: settings.reduceMotion, systemReduceMotion },
+    ...settings, provided: true, reduceMotion: effectiveMotion, systemReduceMotion, performance,
+    settings: { ...settings, reduceMotion: effectiveMotion, preferredReduceMotion: settings.reduceMotion, systemReduceMotion,
+      performanceTier: performance.tier, canAdjustMotion: performance.tier !== 'low' },
     updateSettings, speak, registerSpeech, ttsError, ttsInitializing,
     textToSpeechEnabled: settings.ttsEnabled,
     increaseFont: () => updateSettings(previous => ({ fontScale: previous.fontScale + 0.1 })),
     decreaseFont: () => updateSettings(previous => ({ fontScale: previous.fontScale - 0.1 })),
     toggleContrast: enabled => updateSettings(previous => ({ highContrast: typeof enabled === 'boolean' ? enabled : !previous.highContrast })),
     toggleTTS: enabled => updateSettings(previous => ({ ttsEnabled: typeof enabled === 'boolean' ? enabled : !previous.ttsEnabled })),
-  }), [settings, effectiveMotion, systemReduceMotion, updateSettings, speak, registerSpeech, ttsError, ttsInitializing]);
+  }), [settings, effectiveMotion, systemReduceMotion, performance, updateSettings, speak, registerSpeech, ttsError, ttsInitializing]);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 const fallback = { ...defaults, settings: defaults, provided: false, updateSettings: async () => {}, speak: async () => false, registerSpeech: () => () => {} };

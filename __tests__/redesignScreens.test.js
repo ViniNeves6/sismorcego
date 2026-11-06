@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { ScrollView, TextInput, Text as RNText, StyleSheet } from 'react-native';
+import { ScrollView, TextInput, Text as RNText, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaisScreens from '../src/pages/Extras/MaisScreens';
 import RegistrosScreen from '../src/pages/Main/RegistrosScreen';
@@ -8,6 +8,7 @@ import { AccessibilityProvider } from '../src/hooks/useAccessibility';
 import { Text } from '../src/ui/AccessibleNative';
 import { pickRegistroPhoto } from '../src/services/deviceCapture';
 import { canAccessCoordinatorArea } from '../src/services/roleAccess';
+import ScrollViewWithScrollbar from '../src/ui/ScrollViewWithScrollbar';
 
 jest.mock('../src/services/redesignData', () => ({}));
 jest.mock('../src/services/deviceCapture', () => ({ pickRegistroPhoto: jest.fn() }));
@@ -50,7 +51,9 @@ test('password success depends on Firebase update; rejection retains form and st
 test('account save waits for real update and reports failure instead of success', async () => {
   const props = { ...defaults(), activeSubscreen: 'sub-account' };
   props.onSaveAccountProfile.mockRejectedValue(new Error('Email já cadastrado.'));
-  await render(props); await press('Salvar alterações');
+  await render(props);
+  await act(async () => tree.root.findAllByType(TextInput)[1].props.onChangeText('novo@example.test'));
+  await press('Salvar alterações');
   expect(props.showToast).toHaveBeenCalledWith('Email já cadastrado.');
   expect(props.showToast).not.toHaveBeenCalledWith('Perfil atualizado!');
 });
@@ -60,6 +63,55 @@ test('avatar persists locally without submitting unsaved profile fields to Fireb
   await render(props); await press('Galeria');
   expect(props.onSaveAvatarPhoto).toHaveBeenCalledWith('file:///avatar.jpg');
   expect(props.onSaveAccountProfile).not.toHaveBeenCalled();
+});
+
+const saveAccountButton = () => tree.root.findAll(node => node.props.accessibilityRole === 'button' &&
+  typeof node.props.onPress === 'function' && node.findAllByType(RNText).some(text => text.props.children === 'Salvar alterações'))[0];
+test('account save is gray and guarded until a meaningful edit, disables on revert and after saving', async () => {
+  const props = { ...defaults(), activeSubscreen: 'sub-account' }; await render(props);
+  const edit = async (index, value) => act(async () => tree.root.findAllByType(TextInput)[index].props.onChangeText(value));
+  expect(saveAccountButton().props.disabled).toBe(true);
+  expect(StyleSheet.flatten(saveAccountButton().props.style({ pressed: false })).backgroundColor).toBe('#E5E7EB');
+  await press('Salvar alterações'); expect(props.onSaveAccountProfile).not.toHaveBeenCalled();
+  await edit(0, '  Ana  '); await edit(1, ' ANA@REAL.ORG ');
+  expect(saveAccountButton().props.disabled).toBe(true);
+  await edit(0, 'Ana Lima'); expect(saveAccountButton().props.disabled).toBe(false);
+  await edit(0, 'Ana'); expect(saveAccountButton().props.disabled).toBe(true);
+  await edit(0, 'Ana Lima'); await press('Salvar alterações');
+  expect(props.onSaveAccountProfile).toHaveBeenCalledWith({ username: 'Ana Lima', email: 'ana@real.org', photoUri: null });
+  expect(saveAccountButton().props.disabled).toBe(true);
+});
+
+test('saving a photo immediately preserves unsaved name edits and advances only the photo baseline', async () => {
+  const props = { ...defaults(), activeSubscreen: 'sub-account' }; await render(props);
+  await act(async () => tree.root.findAllByType(TextInput)[0].props.onChangeText('Ana Lima'));
+  pickRegistroPhoto.mockResolvedValue({ localUri: 'file:///next.jpg' }); await press('Galeria');
+  expect(tree.root.findAllByType(TextInput)[0].props.value).toBe('Ana Lima');
+  expect(saveAccountButton().props.disabled).toBe(false);
+  await act(async () => tree.root.findAllByType(TextInput)[0].props.onChangeText('Ana'));
+  expect(saveAccountButton().props.disabled).toBe(true);
+});
+
+test('low performance hides only the motion switch while other settings and account access remain', async () => {
+  const props = { ...defaults(), activeSubscreen: 'sub-settings', accessibility: { canAdjustMotion: false, fontScale: 1, reduceMotion: true } };
+  await render(props); expect(texts()).not.toContain('Reduzir animações');
+  expect(texts()).toContain('Alto contraste');
+  await act(async () => tree.update(<MaisScreens {...props} accessibility={{ ...props.accessibility, canAdjustMotion: true }} />));
+  expect(texts()).toContain('Reduzir animações');
+});
+
+test('new doubt removes dock clearance and hides only the indicator while the keyboard is open', async () => {
+  const props = { ...defaults(), activeSubscreen: 'sub-faq', doubtsView: 'compose' }; await render(props);
+  const scroll = () => tree.root.findByType(ScrollViewWithScrollbar);
+  expect(scroll().props.showScrollbar).toBe(true);
+  await act(async () => tree.update(<MaisScreens {...props} keyboardVisible />));
+  expect(scroll().props.showScrollbar).toBe(false);
+  expect(scroll().props.scrollEnabled).not.toBe(false);
+  expect(tree.root.findByType(TextInput).props.scrollEnabled).toBe(true);
+  const outer = tree.root.findByType(MaisScreens).findAllByType(View)[0];
+  expect(StyleSheet.flatten(outer.props.style).paddingBottom).toBe(0);
+  await act(async () => tree.update(<MaisScreens {...props} keyboardVisible={false} />));
+  expect(scroll().props.showScrollbar).toBe(true);
 });
 test('doubt send uses real callback, preserves text on rejection, and displays actual answers', async () => {
   const props = { ...defaults(), activeSubscreen: 'sub-faq', doubtsView: 'compose' };

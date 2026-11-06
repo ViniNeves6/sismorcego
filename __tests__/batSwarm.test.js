@@ -5,8 +5,11 @@ import { cancelAnimation } from 'react-native-reanimated';
 import BatSwarm from '../src/navigation/BatSwarm';
 
 let mockReduced = false;
+let mockTier;
+let mockSource;
 const mockValues = [];
 jest.mock('../src/ui/useReduceMotion', () => () => mockReduced);
+jest.mock('../src/hooks/useAccessibility', () => () => ({ performance: mockTier ? { tier: mockTier, source: mockSource } : undefined }));
 // Mock only the UI-thread runtime. The production geometry/effects render intact.
 jest.mock('react-native-reanimated', () => {
   const ReactRuntime = require('react');
@@ -35,7 +38,7 @@ const render = async props => act(async () => { tree = Renderer.create(<BatSwarm
 const rerender = async props => act(async () => tree.update(<BatSwarm {...props} />));
 const bats = () => tree.root.findAllByType(View).filter(node => Array.isArray(StyleSheet.flatten(node.props.style)?.transform));
 beforeEach(() => {
-  mockReduced = false; mockValues.length = 0; jest.clearAllMocks();
+  mockReduced = false; mockTier = undefined; mockSource = 'native'; mockValues.length = 0; jest.clearAllMocks();
   jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width: 393, height: 852, scale: 3, fontScale: 1 });
 });
 afterEach(async () => { if (tree) await act(async () => tree.unmount()); tree = null; jest.restoreAllMocks(); });
@@ -55,6 +58,16 @@ test('uses the original 18 varied sprites, delayed diagonal flights and repeatin
     expect(flight.animation.config.duration).toBeGreaterThanOrEqual(1500); expect(flight.animation.config.duration).toBeLessThanOrEqual(2200);
     expect(wings.animation).toMatchObject({ kind: 'repeat', count: -1, animation: { kind: 'sequence' } });
   }
+});
+
+test.each([['medium', 10], ['high', 18]])('%s profile limits decorative bats to %s while preserving their flights', async (tier, count) => {
+  mockTier = tier; await render(); expect(tree.root.findAllByType(Image)).toHaveLength(count);
+  expect(mockValues).toHaveLength(count * 2);
+});
+
+test('without native metrics the existing full opening is preserved', async () => {
+  mockTier = 'medium'; mockSource = 'unavailable'; await render();
+  expect(tree.root.findAllByType(Image)).toHaveLength(18);
 });
 
 test('each original path travels up and right, with independent geometry rather than a shared row', async () => {

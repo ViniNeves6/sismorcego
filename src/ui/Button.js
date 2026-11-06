@@ -8,6 +8,10 @@ import Icon from './Icon';
 // Variantes explícitas; cada uma resolve suas cores a partir do tema.
 function resolveVariant(variant, colors, pressed) {
   switch (variant) {
+    case 'muted':
+      return colors.mode === 'highContrast'
+        ? { bg: colors.surfaceMuted, fg: colors.inkMuted, border: colors.line }
+        : { bg: '#E5E7EB', fg: '#4B5563', border: '#E5E7EB' };
     case 'secondary':
       return {
         bg: pressed ? colors.primarySoft : colors.surface,
@@ -68,7 +72,7 @@ export default function Button({
             paddingHorizontal: spacing.xl,
             backgroundColor: v.bg,
             borderColor: v.border,
-            opacity: disabled ? 0.45 : 1,
+            opacity: disabled && variant !== 'muted' ? 0.45 : 1,
           },
           style,
         ];

@@ -16,6 +16,6 @@ class SismorcegoBuildModule(context: ReactApplicationContext) : ReactContextBase
 
 class SismorcegoBuildPackage : ReactPackage {
   override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> =
-    listOf(SismorcegoBuildModule(context), SismorcegoDocumentsModule(context))
-  override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
+    listOf(SismorcegoBuildModule(context), SismorcegoDocumentsModule(context), SismorcegoDeviceModule(context), SismorcegoWindowModule(context))
+  override fun createViewManagers(context: ReactApplicationContext): List<ViewManager<*, *>> = listOf(SismorcegoKeyboardDockManager())
 }

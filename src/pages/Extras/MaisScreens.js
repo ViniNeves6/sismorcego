@@ -31,6 +31,7 @@ import {
 import { getReporterInitials } from '../../services/sismorcegoData';
 import { pickRegistroPhoto } from '../../services/deviceCapture';
 import AnimatedOverlay from '../../ui/AnimatedOverlay';
+import { hasProfileChanges, normalizedProfile } from '../../services/editChanges';
 import { FIREBASE_PUSH_BACKEND_READY } from '../../services/firebaseIntegration';
 
 const IMG_DIVERSIDADE = require('../../assets/images/InfoDiversidadeMorcegos.jpg');
@@ -257,6 +258,7 @@ export default function MaisScreens({
   menuGuideRef,
   guideScroll,
   bottomInset = 0,
+  keyboardVisible = false,
 }) {
   const systemReduceMotion = useReduceMotion();
   const reduceMotion = Boolean(accessibility?.reduceMotion || systemReduceMotion);
@@ -271,6 +273,8 @@ export default function MaisScreens({
     accountProfile?.email || '',
   );
   const [photoUri, setPhotoUri] = useState(accountProfile?.photoUri || null);
+  const [accountBaseline, setAccountBaseline] = useState(() => normalizedProfile(accountProfile));
+  const accountChanged = hasProfileChanges(accountBaseline, { username, email, photoUri });
   const [focusedField, setFocusedField] = useState(null);
 
   // Password state
@@ -343,9 +347,18 @@ export default function MaisScreens({
     return () => loop.stop();
   }, [reduceMotion, floatAnim, activeSubscreen]);
 
-  useEffect(() => { setUsername(accountProfile?.username || ''); }, [accountProfile?.username]);
-  useEffect(() => { setEmail(accountProfile?.email || ''); }, [accountProfile?.email]);
-  useEffect(() => { setPhotoUri(accountProfile?.photoUri || null); }, [accountProfile?.photoUri]);
+  useEffect(() => {
+    setUsername(accountProfile?.username || '');
+    setAccountBaseline(previous => ({ ...previous, username: accountProfile?.username || '' }));
+  }, [accountProfile?.username]);
+  useEffect(() => {
+    setEmail(accountProfile?.email || '');
+    setAccountBaseline(previous => ({ ...previous, email: accountProfile?.email || '' }));
+  }, [accountProfile?.email]);
+  useEffect(() => {
+    setPhotoUri(accountProfile?.photoUri || null);
+    setAccountBaseline(previous => ({ ...previous, photoUri: accountProfile?.photoUri || null }));
+  }, [accountProfile?.photoUri]);
 
   const handlePickAvatarPhoto = async (source) => {
     if (accountSavingRef.current) return;
@@ -356,6 +369,7 @@ export default function MaisScreens({
       if (photo) {
         await onSaveAvatarPhoto(photo.localUri);
         setPhotoUri(photo.localUri);
+        setAccountBaseline(previous => ({ ...previous, photoUri: photo.localUri }));
         showToast?.('Foto atualizada!');
       }
     } catch (e) {
@@ -383,7 +397,7 @@ export default function MaisScreens({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.subContent}
+          contentContainerStyle={[styles.subContent, keyboardVisible && styles.keyboardContent]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -473,23 +487,28 @@ export default function MaisScreens({
           </Pressable>
 
           <Pressable
-            disabled={accountSaving}
+            disabled={accountSaving || !accountChanged}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: accountSaving || !accountChanged }}
             onPress={async () => {
-              if (accountSavingRef.current) return;
+              if (accountSavingRef.current || !accountChanged) return;
+              const requested = normalizedProfile({ username, email, photoUri });
               accountSavingRef.current = true;
               setAccountSaving(true);
               try {
-                await onSaveAccountProfile({ username: username.trim(), email: email.trim(), photoUri });
+                await onSaveAccountProfile(requested);
+                setAccountBaseline(requested);
                 showToast?.('Perfil atualizado!');
               } catch (error) { showToast?.(error.message || 'Não foi possível atualizar o perfil.'); }
               finally { accountSavingRef.current = false; setAccountSaving(false); }
             }}
             style={({ pressed }) => [
               styles.primaryBtn,
-              pressed && styles.primaryBtnPressed,
+              (accountSaving || !accountChanged) && styles.primaryBtnDisabled,
+              pressed && !accountSaving && accountChanged && styles.primaryBtnPressed,
             ]}
           >
-            <Text style={styles.primaryBtnText}>{accountSaving ? 'Salvando...' : 'Salvar alterações'}</Text>
+            <Text style={[styles.primaryBtnText, (accountSaving || !accountChanged) && styles.primaryBtnDisabledText]}>{accountSaving ? 'Salvando...' : 'Salvar alterações'}</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -546,7 +565,7 @@ export default function MaisScreens({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.subContent}
+          contentContainerStyle={[styles.subContent, keyboardVisible && styles.keyboardContent]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -679,7 +698,7 @@ export default function MaisScreens({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.subContent}
+          contentContainerStyle={[styles.subContent, keyboardVisible && styles.keyboardContent]}
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.sectionCard, { paddingVertical: 6 }]}>
@@ -735,7 +754,7 @@ export default function MaisScreens({
               }}>
               <Text style={styles.fontStepBtnText}>Ouvir exemplo de leitura</Text>
             </Pressable>
-            <View style={[styles.toggleRow, { borderBottomWidth: 0 }]}>
+            {accessibility?.canAdjustMotion !== false && <View style={[styles.toggleRow, { borderBottomWidth: 0 }]}>
               <View style={styles.toggleInfo}>
                 <Text style={styles.toggleTitle}>Reduzir animações</Text>
                 <Text style={styles.toggleSub}>
@@ -754,7 +773,7 @@ export default function MaisScreens({
                 }}
                 reduceMotion={reduceMotion}
               />
-            </View>
+            </View>}
           </View>
 
           <View style={styles.sectionCard}>
@@ -843,7 +862,7 @@ export default function MaisScreens({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.subContent}
+          contentContainerStyle={[styles.subContent, keyboardVisible && styles.keyboardContent]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.infoPosterCard}>
@@ -940,7 +959,7 @@ export default function MaisScreens({
     };
 
     return (
-      <View style={[styles.screen, { paddingBottom: 94 + bottomInset }]}>
+      <View style={[styles.screen, { paddingBottom: keyboardVisible ? 0 : 94 + bottomInset }]}>
         <View style={styles.subHeader}>
           <Pressable
             onPress={handleDoubtsBack}
@@ -964,6 +983,7 @@ export default function MaisScreens({
             style: styles.scroll,
             contentContainerStyle: [styles.subContent, styles.doubtsContent],
             reduceMotion: reduceMotion,
+            showScrollbar: !(doubtsView === 'compose' && keyboardVisible),
             keyboardShouldPersistTaps: 'handled',
           })}
         >
@@ -1244,7 +1264,7 @@ export default function MaisScreens({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.subContent}
+          contentContainerStyle={[styles.subContent, keyboardVisible && styles.keyboardContent]}
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.aboutSectionTitle}>Eventos</Text>
@@ -1309,7 +1329,7 @@ export default function MaisScreens({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.subContent}
+          contentContainerStyle={[styles.subContent, keyboardVisible && styles.keyboardContent]}
           showsVerticalScrollIndicator={false}
         >
           {CREDITS_GROUPS.map((grp) => (
@@ -1499,6 +1519,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 104,
   },
+  keyboardContent: { paddingBottom: 16 },
   accountHero: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -1750,6 +1771,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.28,
     shadowRadius: 20,
   },
+  primaryBtnDisabled: { backgroundColor: '#E5E7EB', elevation: 0, shadowOpacity: 0 },
+  primaryBtnDisabledText: { color: '#4B5563' },
   primaryBtnPressed: {
     backgroundColor: '#5316B8',
     transform: [{ scale: 0.99 }],

@@ -15,6 +15,7 @@ export const isSharedPhotoUrl = uri => typeof uri === 'string' && /^https:\/\//i
 export async function saveLocalProfilePhoto(uid, uri) {
   if (!uid) throw new Error('Faça login para salvar a foto.');
   const key = `@sismorcego:${uid}:profilePhoto`;
+  if ((await AsyncStorage.getItem(key) || null) === (uri || null)) return;
   if (uri) await AsyncStorage.setItem(key, uri);
   else await AsyncStorage.removeItem(key);
   DeviceEventEmitter.emit('profilePhoto:changed', uri || null);
