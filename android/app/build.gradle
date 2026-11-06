@@ -115,14 +115,14 @@ android {
             applicationIdSuffix ".homologacao"
             matchingFallbacks = ["debug"]
             buildConfigField "boolean", "SISMORCEGO_REAL_FIREBASE", "true"
-            resValue "string", "app_name", "Sismorcego Homologação"
+            resValue "string", "app_name", "Sismorcego"
         }
         emulator {
             initWith debug
             applicationIdSuffix ".emulador"
             matchingFallbacks = ["debug"]
             buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "true"
-            resValue "string", "app_name", "Sismorcego Emulador"
+            resValue "string", "app_name", "Sismorcego"
         }
         release {
             // Caution! In production, you need to generate your own keystore file.

@@ -28,6 +28,8 @@ import {
 import { reverseGeocodeMunicipio } from '../services/geocoding';
 import { gpsAccuracy, isValidGpsCoordinates } from '../services/gpsCoordinates';
 import { isCancelledRecord } from '../services/recordLifecycle';
+import { toRecordView } from '../services/registroAdapter';
+import { hasRecordEditChanges } from '../services/editChanges';
 
 const VICTIM_OPTIONS = [
   { key: 'humano', label: 'Humano' },
@@ -277,6 +279,12 @@ export default function RecordDetailsModal({
 
   const activeVictimKey = draft?.victimKey || record.victimKey || 'humano';
   const activeDetails = detailsByType[activeVictimKey] || {};
+  const serverVersion = record?._raw?.syncConflict?.serverRecord;
+  const editBaseline = serverVersion ? toRecordView({ ...record._raw, ...serverVersion }) : record;
+  const editionChanged = Boolean(draft && editBaseline && hasRecordEditChanges(
+    { ...editBaseline, details: clearHiddenVictimFields(editBaseline.victimKey || 'humano', editBaseline.details || {}) },
+    { ...draft, details: clearHiddenVictimFields(activeVictimKey, activeDetails) },
+  ));
 
   const handleSelectVictimType = (newKey) => {
     if (!draft || newKey === draft.victimKey) return;
@@ -373,7 +381,7 @@ export default function RecordDetailsModal({
 
   const handleSaveEdition = async () => {
     if (!canEdit) { showToast?.('Esta ocorrência está disponível somente para consulta.'); return; }
-    if (!draft || busyRef.current) return;
+    if (!draft || busyRef.current || !editionChanged) return;
     const nextErrors = {};
     const rep = String(record.reporter || '');
     const dt = String(draft.date || '').trim();
@@ -1093,13 +1101,16 @@ export default function RecordDetailsModal({
                 </Pressable>
                 <Pressable
                   onPress={handleSaveEdition}
-                  disabled={busy}
+                  disabled={busy || !editionChanged}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: busy || !editionChanged }}
                   style={({ pressed }) => [
                     styles.primaryBtn,
-                    pressed && { opacity: 0.9 },
+                    (busy || !editionChanged) && styles.primaryBtnDisabled,
+                    pressed && !busy && editionChanged && { opacity: 0.9 },
                   ]}
                 >
-                  <Text style={styles.primaryBtnText}>{busy ? 'Salvando...' : 'Salvar alterações'}</Text>
+                  <Text style={[styles.primaryBtnText, (busy || !editionChanged) && styles.primaryBtnDisabledText]}>{busy ? 'Salvando...' : 'Salvar alterações'}</Text>
                 </Pressable>
               </>
             )}
@@ -1615,6 +1626,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 14,
   },
+  primaryBtnDisabled: { backgroundColor: '#E5E7EB', elevation: 0, shadowOpacity: 0 },
+  primaryBtnDisabledText: { color: '#4B5563' },
   primaryBtnText: {
     fontSize: 13.5,
     fontFamily: 'PlusJakartaSans-ExtraBold',

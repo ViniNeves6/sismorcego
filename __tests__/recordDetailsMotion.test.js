@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { BackHandler, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Animated } from '../src/ui/AccessibleNative';
 import RecordDetailsModal from '../src/ui/RecordDetailsModal';
 import { layoutRecordDetails } from './helpers/layoutRecordDetails';
@@ -164,4 +164,17 @@ test('closing during the edit-mode fade cancels it and prevents a late callback 
   expect(hasText('Modificar registro')).toBe(false);
   await finish(exit);
   expect(tree.toJSON()).toBeNull(); expect(onExited).toHaveBeenCalledTimes(1);
+});
+
+test('record editor disables and guards unchanged saves, including edits that are reverted', async () => {
+  mockSystemReduceMotion = true; const onSave = jest.fn();
+  await act(async () => { tree = TestRenderer.create(render(true, { onSaveRecord: onSave })); });
+  await press('Editar');
+  const save = () => tree.root.findAll(node => typeof node.props.onPress === 'function' &&
+    node.findAllByType(Text).some(text => text.props.children === 'Salvar alterações'))[0];
+  expect(save().props.disabled).toBe(true); await press('Salvar alterações'); expect(onSave).not.toHaveBeenCalled();
+  const community = () => tree.root.findAllByType(TextInput).find(node => node.props.placeholder === 'Opcional');
+  expect(community()).toBeTruthy();
+  await act(async () => community().props.onChangeText('Centro')); expect(save().props.disabled).toBe(false);
+  await act(async () => community().props.onChangeText('')); expect(save().props.disabled).toBe(true);
 });

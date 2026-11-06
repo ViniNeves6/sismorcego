@@ -9,6 +9,7 @@ import useAuth from '../../hooks/useAuth';
 import useAccessibility from '../../hooks/useAccessibility';
 import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 import logger from '../../utils/logger';
+import { hasProfileChanges, normalizedProfile } from '../../services/editChanges';
 
 const EMAIL_RE = /\S+@\S+\.\S+/;
 
@@ -26,6 +27,10 @@ export default function Conta() {
   const [foto, setFoto] = useState(null);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [baseline, setBaseline] = useState(() => normalizedProfile({ username: user?.displayName, email: user?.email }));
+  const changed = hasProfileChanges(baseline, { username: nome, email }) || senha.length > 0;
+  useEffect(() => { setBaseline(previous => ({ ...previous, username: normalizedProfile({ username: user?.displayName }).username })); }, [user?.displayName]);
+  useEffect(() => { setBaseline(previous => ({ ...previous, email: normalizedProfile({ email: user?.email }).email })); }, [user?.email]);
 
   // Foto local (ou do Firebase, se existir).
   useEffect(() => {
@@ -63,7 +68,7 @@ export default function Conta() {
   };
 
   const salvar = async () => {
-    if (saving) return;
+    if (saving || !changed) return;
     if (!validate()) {
       if (textToSpeechEnabled) speak('Erro. Verifique os campos destacados.');
       return;
@@ -71,7 +76,9 @@ export default function Conta() {
 
     try {
       setSaving(true);
-      await updateUser({ nome, email: email.trim(), senha });
+      const requested = normalizedProfile({ username: nome, email });
+      await updateUser({ nome: requested.username, email: requested.email, senha });
+      setBaseline(requested);
       setSenha('');
       setConfirmaSenha('');
       toast.show('Dados atualizados.', { tone: 'success' });
@@ -91,7 +98,8 @@ export default function Conta() {
       header={<ScreenHeader title="Conta" />}
       footer={
         <FooterBar>
-          <Button title="Salvar alterações" icon="check" onPress={salvar} loading={saving} />
+          <Button title="Salvar alterações" icon="check" onPress={salvar} loading={saving}
+            disabled={!changed} variant={!changed ? 'muted' : 'primary'} />
         </FooterBar>
       }
       contentContainerStyle={{ gap: spacing.xl }}

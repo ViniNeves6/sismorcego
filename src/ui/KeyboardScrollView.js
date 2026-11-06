@@ -1,6 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useRef } from 'react';
 import { Keyboard, ScrollView, TextInput } from 'react-native';
 import useReduceMotion from './useReduceMotion';
+import useKeyboardState from '../hooks/useKeyboardState';
 
 const measure = node => new Promise(resolve => {
   if (!node?.measureInWindow) { resolve(null); return; }
@@ -15,6 +16,9 @@ export default forwardRef(function KeyboardScrollView({ onFocus, onBlur, onLayou
   const keyboardTop = useRef(Keyboard.metrics?.()?.screenY ?? null);
   const job = useRef({ version: 0, first: null, second: null });
   const reduceMotion = useReduceMotion();
+  const keyboard = useKeyboardState();
+  const nativeTransition = useRef(false);
+  nativeTransition.current = keyboard.native && keyboard.transitioning;
   const skipMotion = useRef(reduceMotion);
   skipMotion.current = reduceMotion;
 
@@ -27,7 +31,7 @@ export default forwardRef(function KeyboardScrollView({ onFocus, onBlur, onLayou
 
   const reveal = useCallback(() => {
     cancel();
-    if (keyboardTop.current === null || !focusedRef.current || manual.current) return;
+    if (nativeTransition.current || keyboardTop.current === null || !focusedRef.current || manual.current) return;
     const version = job.current.version;
     // Measure after the keyboard avoidance and native scroll viewport have resized.
     job.current.first = requestAnimationFrame(() => {
@@ -55,6 +59,12 @@ export default forwardRef(function KeyboardScrollView({ onFocus, onBlur, onLayou
     const hide = Keyboard.addListener('keyboardDidHide', () => { keyboardTop.current = null; cancel(); });
     return () => { show.remove(); hide.remove(); cancel(); };
   }, [cancel, reveal]);
+  useEffect(() => {
+    if (!keyboard.native) return;
+    if (!keyboard.visible) { keyboardTop.current = null; cancel(); return; }
+    keyboardTop.current = keyboard.keyboardTop;
+    if (!keyboard.transitioning) reveal();
+  }, [keyboard, cancel, reveal]);
 
   return <ScrollView {...props}
     ref={node => {

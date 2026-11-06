@@ -110,9 +110,9 @@ test.each(['android', 'ios'])('one application viewport restores its padding aft
     expect(tree.root.findAllByType(KeyboardAvoidingView)).toHaveLength(1);
     const viewport = () => tree.root.findByType(KeyboardAvoidingView);
     expect(viewport().props.behavior).toBe('padding');
-    await act(async () => listeners.keyboardDidShow({ endCoordinates: { screenY: 500, height: 300 } }));
-    expect(viewport().props.enabled).toBe(true);
-    await act(async () => listeners.keyboardDidHide({ endCoordinates: { screenY: 780, height: 0 } }));
+    await act(async () => viewport().instance._onKeyboardChange({ duration: 0, endCoordinates: { screenY: 500, height: 300 } }));
+    expect(viewport().props.enabled).toBe(os === 'ios');
+    await act(async () => viewport().instance._onKeyboardHide({ duration: 0, endCoordinates: { screenY: 780, height: 0 } }));
     expect(viewport().props.enabled).toBe(os === 'ios');
   } finally { Platform.OS = original; }
 });
@@ -128,15 +128,15 @@ test.each(['native-resize', 'edge-to-edge'])('Android returns to full height aft
     await act(async () => layout(800));
     for (let cycle = 0; cycle < 3; cycle++) {
       const opened = { duration: 0, endCoordinates: { screenY: 500, height: 300 } };
-      await act(async () => { instance._onKeyboardChange(opened); listeners.keyboardDidShow(opened); });
+      await act(async () => { instance._onKeyboardChange(opened); });
       await act(async () => layout(mode === 'native-resize' ? 500 : 800));
-      expect(padding()).toMatchObject({ flex: 1, paddingBottom: mode === 'native-resize' ? 0 : 300 });
+      expect(padding()).toMatchObject({ flex: 1, paddingBottom: 0 });
       expect(padding().height).toBeUndefined();
       // Android may restore the window before emitting hide, with screenY
       // excluding the system bar. Neither ordering nor that inset may stick.
       await act(async () => layout(800));
       const closed = { duration: 0, endCoordinates: { screenY: 780, height: 0 } };
-      await act(async () => { instance._onKeyboardChange(closed); listeners.keyboardDidHide(closed); });
+      await act(async () => { instance._onKeyboardHide(closed); });
       expect(padding()).toMatchObject({ flex: 1, paddingBottom: 0 });
       expect(padding().height).toBeUndefined();
       expect(viewport().props.enabled).toBe(false);

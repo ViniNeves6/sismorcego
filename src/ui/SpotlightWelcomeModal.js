@@ -126,7 +126,7 @@ function Moon({ size, style }) {
 }
 
 export default function SpotlightWelcomeModal({ visible, onClose, onExited, reduceMotion = false }) {
-  const { highContrast } = useAccessibility();
+  const { highContrast, performance } = useAccessibility();
   useSpeakOnMount('Bem-vindo ao Sismorcego. Toque em Continuar para conhecer o aplicativo', { active: visible, priority: 100 });
   const systemReduceMotion = useReduceMotion();
   const skipMotion = reduceMotion || systemReduceMotion;
@@ -268,7 +268,7 @@ export default function SpotlightWelcomeModal({ visible, onClose, onExited, redu
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: motion.stars }]}>
         {STARS.map(([left, top, opacity], index) => <View key={index} style={[styles.star, { left, top, opacity }]} />)}
       </Animated.View>
-      {!skipMotion && BACKGROUND_BATS.map((bat, index) => <BackgroundBat key={index} bat={bat} index={index}
+      {!skipMotion && BACKGROUND_BATS.slice(0, performance?.source === 'native' && performance.tier === 'medium' ? 2 : BACKGROUND_BATS.length).map((bat, index) => <BackgroundBat key={index} bat={bat} index={index}
         active={visible && sceneReady} flap={motion.miniFlap} screenWidth={frame.width} />)}
       <View testID="welcome-stage" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
         style={[styles.stage, { width: stageWidth, height: stageHeight }]}>

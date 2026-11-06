@@ -12,6 +12,7 @@ import Animated, {
   cancelAnimation,
 } from "react-native-reanimated";
 import useReduceMotion from '../ui/useReduceMotion';
+import useAccessibility from '../hooks/useAccessibility';
 
 const BAT_SOURCE = require("../assets/images/BatFlying.png");
 const BAT_RATIO = 79 / 100; // altura / largura do sprite
@@ -129,10 +130,11 @@ function FlyingBat({ index, width: screenW, height: screenH }) {
 export default function BatSwarm({ reduced = false }) {
   const { width, height } = useWindowDimensions();
   const preferredReducedMotion = useReduceMotion();
+  const { performance } = useAccessibility();
   if (reduced || preferredReducedMotion) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {Array.from({ length: BAT_COUNT }, (_, i) => (
+      {Array.from({ length: performance?.source === 'native' && performance.tier === 'medium' ? 10 : BAT_COUNT }, (_, i) => (
         <FlyingBat key={i} index={i} width={width} height={height} />
       ))}
     </View>

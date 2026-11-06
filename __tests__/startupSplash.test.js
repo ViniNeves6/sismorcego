@@ -1,6 +1,6 @@
 import React from 'react';
 import Renderer, { act } from 'react-test-renderer';
-import { ActivityIndicator, Animated, BackHandler, Image, Keyboard, Modal, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Image, Modal, StyleSheet, View } from 'react-native';
 import StartupSplash, { MIN_SPLASH_MS, SPLASH_FADE_MS } from '../src/navigation/StartupSplash';
 import Navigation from '../src/navigation';
 import { SCREEN_FADE_IN_MS, SCREEN_FADE_OUT_MS, screenFadeTiming } from '../src/ui/screenFade';
@@ -196,9 +196,6 @@ const layoutStartupLogin = async () => act(async () => tree.root.findAllByType(V
 const authenticate = async (uid = 'signed-in', role = 'acs') => {
   mockAuth = { user: { uid }, role, loading: false }; await update(<Navigation />);
 };
-const modal = () => tree.root.findByType(Modal);
-const showLoginCover = async () => act(async () => modal().props.onShow());
-const contentReady = async () => act(async () => tree.root.findByType('SismorcegoShell').props.onInitialScreenReady());
 const loginCover = () => animations.filter(animation => animation.config.toValue === 1 && animation.config.duration === SCREEN_FADE_OUT_MS).at(-1);
 const revealLogin = async () => finish(loginCover());
 
@@ -232,7 +229,7 @@ test('reduced motion enters login automatically after the startup minimum withou
   expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0); expect(animations).toHaveLength(0);
 });
 
-test('post-login uses the screen fade without fading elevated cards or removing the old artwork before cover completion', async () => {
+test('startup screen transition uses the screen fade without fading elevated cards or removing the old artwork before cover completion', async () => {
   await render(<StartupSplash ready screenTransition onExited={onExited} />); await tick(MIN_SPLASH_MS);
   const cover = loginCover();
   for (const progress of [0.1, 0.5, 0.9]) {
@@ -250,7 +247,7 @@ test('post-login uses the screen fade without fading elevated cards or removing 
   await finish(fade()); expect(onExited).toHaveBeenCalledTimes(1);
 });
 
-test.each(['cover', 'reveal'])('auth resuming during post-login %s cancels it and ignores stale completions', async phase => {
+test.each(['cover', 'reveal'])('auth resuming during startup screen transition %s cancels it and ignores stale completions', async phase => {
   await render(<StartupSplash ready screenTransition onExited={onExited} />); await tick(MIN_SPLASH_MS);
   let old = loginCover();
   if (phase === 'reveal') { await revealLogin(); old = fade(); }
@@ -261,7 +258,7 @@ test.each(['cover', 'reveal'])('auth resuming during post-login %s cancels it an
   await revealLogin(); await finish(fade()); expect(onExited).toHaveBeenCalledTimes(1);
 });
 
-test('post-login high contrast uses a black transition cover', async () => {
+test('startup screen transition high contrast uses a black transition cover', async () => {
   mockColors = { ...mockColors, canvas: '#000000', brandDeep: '#000000', onBrand: '#FFD700' };
   await render(<StartupSplash ready screenTransition onExited={onExited} />);
   const coverLayer = tree.root.findAllByProps({ testID: 'splash-screen-fade' })[0];
@@ -270,87 +267,33 @@ test('post-login high contrast uses a black transition cover', async () => {
   expect(StyleSheet.flatten(splashLayer().props.style).backgroundColor).toBe('#000000');
 });
 
-test.each(['acs', 'coordenador'])('homologation covers login before replacing AuthStack and keeps %s Shell behind the exit', async role => {
-  mockHomologation = true; await completeStartup();
-  const dismiss = jest.spyOn(Keyboard, 'dismiss');
-  await authenticate('signed-in', role);
-  expect(modal().props).toMatchObject({ visible: true, transparent: true, animationType: 'none', statusBarTranslucent: true });
-  expect(tree.root.findAllByType('AuthStack')).toHaveLength(1);
-  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(0);
-  await showLoginCover(); expect(dismiss).toHaveBeenCalledTimes(1);
-  const shell = tree.root.findByType('SismorcegoShell');
-  expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
-  await contentReady(); await tick(MIN_SPLASH_MS - 1);
-  expect(tree.root.findByType(StartupSplash).props.ready).toBe(true);
-  await tick(1);
-  expect(tree.root.findAllByProps({ testID: 'splash-artwork' }).length).toBeGreaterThan(0);
-  await revealLogin();
-  expect(fade().config).toMatchObject({ duration: SCREEN_FADE_IN_MS, toValue: 0 });
-  await act(async () => fade().value.setValue(0.5));
-  expect(tree.root.findByType('SismorcegoShell')).toBe(shell);
-  expect(modal()).toBeTruthy();
-  await finish(fade());
+test.each([false, true])('login, signup, logout, profile and role updates never replay startup (homologation=%s)', async homologation => {
+  mockHomologation = homologation; await completeStartup();
+  const initialAnimations = animations.length;
+  const noReplay = () => {
+    expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
+    expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+    expect(animations).toHaveLength(initialAnimations);
+  };
+  await authenticate('login', 'acs'); noReplay();
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
+  mockAuth = { ...mockAuth, user: { uid: 'login', displayName: 'Updated' }, role: 'coordenador' };
+  await update(<Navigation />); noReplay();
+  for (const uid of ['login', 'newly-registered']) {
+    mockAuth = { user: null, loading: false }; await update(<Navigation />); noReplay();
+    expect(tree.root.findAllByType('AuthStack')).toHaveLength(1);
+    await authenticate(uid); noReplay();
+  }
+  await tick(10000); noReplay();
+});
+
+test('reduced motion does not add a login cover, delay or Back-handler after startup', async () => {
+  mockHomologation = true; mockReducedMotion = true; await completeStartup();
+  const handlers = BackHandler.addEventListener.mock.calls.length;
+  await authenticate();
+  expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
   expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-  expect(tree.root.findByType('SismorcegoShell')).toBe(shell);
-});
-
-test('homologation waits for the first guide frame even when its preparation exceeds 2.9 seconds', async () => {
-  mockHomologation = true; await completeStartup(); const oldFade = fade();
-  await authenticate(); await showLoginCover(); await tick(10000);
-  expect(fade()).toBe(oldFade); expect(tree.root.findByType(StartupSplash).props.ready).toBe(false);
-  expect(tree.root.findAllByType(View).some(node => node.props.importantForAccessibility === 'no-hide-descendants')).toBe(true);
-  await contentReady(); expect(loginCover()).toBeTruthy(); expect(fade()).toBe(oldFade);
-  await revealLogin(); expect(fade()).not.toBe(oldFade);
-  expect(fade().config).toMatchObject({ toValue: 0, duration: SCREEN_FADE_IN_MS });
-  await finish(fade());
-  expect(tree.root.findAllByType(View).some(node => node.props.importantForAccessibility === 'no-hide-descendants')).toBe(false);
-});
-
-test('restored homologation sessions use only startup and profile/role refresh does not replay login cover', async () => {
-  mockHomologation = true; mockAuth = { user: { uid: 'restored' }, loading: false };
-  await completeStartup(); expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-  mockAuth = { ...mockAuth, user: { uid: 'restored', displayName: 'Updated' }, role: 'coordenador' };
-  await update(<Navigation />); expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
-});
-
-test('failed login cannot show the post-login splash', async () => {
-  mockHomologation = true; await completeStartup();
-  await update(<Navigation />); await tick(10000);
-  expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-  expect(tree.root.findAllByType('AuthStack')).toHaveLength(1);
-});
-
-test('logout during the login fade cancels it and a late completion cannot reopen the session', async () => {
-  mockHomologation = true; await completeStartup(); await authenticate(); await showLoginCover();
-  await contentReady(); await tick(MIN_SPLASH_MS); await revealLogin(); const old = fade();
-  mockAuth = { user: null, loading: false }; await update(<Navigation />);
-  expect(old.stop).toHaveBeenCalled(); expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-  await finish(old); expect(tree.root.findAllByType('AuthStack')).toHaveLength(1);
-});
-
-test('re-login to the same UID gets a fresh cover and ignores the old Shell readiness callback', async () => {
-  mockHomologation = true; await completeStartup(); await authenticate(); await showLoginCover();
-  const oldReady = tree.root.findByType('SismorcegoShell').props.onInitialScreenReady;
-  mockAuth = { user: null, loading: false }; await update(<Navigation />);
-  await authenticate(); await showLoginCover(); await act(async () => oldReady());
-  await tick(MIN_SPLASH_MS); expect(tree.root.findByType(StartupSplash).props.ready).toBe(false);
-  await contentReady(); await revealLogin(); await finish(fade()); expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-});
-
-test('reduced motion still covers the first guide frame and removes the cover without flight or fade', async () => {
-  mockHomologation = true; await completeStartup(); mockReducedMotion = true;
-  const count = animations.length;
-  await authenticate(); await showLoginCover(); await contentReady();
-  await tick(MIN_SPLASH_MS - 1); expect(modal()).toBeTruthy();
-  await tick(1); expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-  expect(animations).toHaveLength(count);
-});
-
-test('Android Back exits through the native login modal rather than advancing or skipping the covered guide', async () => {
-  mockHomologation = true; await completeStartup(); await authenticate(); await showLoginCover();
-  const exit = jest.spyOn(BackHandler, 'exitApp');
-  // Render again so the native modal receives the exit spy.
-  await update(<Navigation />); await act(async () => modal().props.onRequestClose());
-  expect(exit).toHaveBeenCalledTimes(1); expect(modal()).toBeTruthy();
-  expect(tree.root.findByType(StartupSplash).props.ready).toBe(false);
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
+  expect(animations).toHaveLength(0);
+  expect(BackHandler.addEventListener).toHaveBeenCalledTimes(handlers);
 });
