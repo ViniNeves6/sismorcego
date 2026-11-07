@@ -1,147 +1,149 @@
-# Avaliação dos coordenadores — acesso automático
+# Avaliação dos coordenadores no Spark
 
-Atualizado em 06/11/2026 na branch exclusiva `feature/redesign-coordenadores-20261031`, sobre `a8b6b92`.
+Entrega na branch exclusiva `feature/redesign-coordenadores-20261031`, após `c338ffa`. A autenticação foi simplificada por solicitação do proprietário: **e-mail e senha compartilhados, entrada automática e nenhum backend próprio**.
 
-## Estado da entrega
+## Estado real
 
-O aplicativo e o emissor automático foram implementados e testados localmente. **A entrada automática no Firebase real ainda depende da publicação do backend**, que exige Blaze e autorização de faturamento. O endpoint real respondeu HTTP 404 na conferência de 06/11/2026. Nenhum faturamento foi habilitado.
+O Firebase `sismorcego-50b25` permanece no plano gratuito Spark, sem faturamento vinculado. O Firestore existente é Standard, banco `(default)`, região `southamerica-east1`, com free tier. Nenhum serviço pago foi ativado.
 
-Confirmado no projeto real `sismorcego-50b25`:
+Conta existente, sem duplicação:
 
-- Conta única habilitada: nome `Sismorcego Teste`, UID `sismorcego-teste-coordenadores`, sem senha/e-mail cadastrados.
-- Perfil `usuarios/sismorcego-teste-coordenadores` com `role: "coordenador"` e claim `sismorcegoEvaluationAccount: true`.
-- Emissor `sismorcego-eval-issuer@sismorcego-50b25.iam.gserviceaccount.com`, assinatura remota e ADC sem chave privada.
-- Documento `configuracoes/avaliacaoCoordenadores` preparado e **suspenso (`enabled: false`)**.
-- Regras de prazo publicadas e conferidas no servidor. Uma sessão Firebase real autenticou e leu o controle; a consulta de ocorrências foi negada durante a suspensão.
+| Item | Estado |
+| --- | --- |
+| Nome no Authentication | `Sismorcego Teste` |
+| UID | `sismorcego-teste-coordenadores` |
+| E-mail técnico | `avaliacao-coordenadores@sismorcego-50b25.firebaseapp.com` |
+| Provedor | E-mail e senha, já habilitado no projeto |
+| Conta | Habilitada |
+| Perfil Firestore | `usuarios/{uid}.role = "coordenador"` |
+| Custom claim preservada | `sismorcegoEvaluationAccount: true` |
 
-Nenhuma ocorrência real foi criada, modificada ou excluída. As outras contas e suas autorizações foram preservadas. A avaliação não foi ativada nesta entrega.
+O e-mail técnico identifica a conta do aplicativo; não é uma caixa de entrada para recuperação por e-mail. A administração da conta continua no Console/SDK autorizado. Minha conta no aplicativo permanece mascarada.
 
-## Fluxo implementado
+**A avaliação está habilitada por 30 dias**, com timestamps reais:
 
-Após a splash existente, o APK consulta automaticamente o serviço HTTPS. O servidor confere o período global, a conta habilitada, a claim e o perfil coordenador; emite um custom token somente para o UID fixo da avaliação e revalida a política depois da assinatura. O SDK Firebase troca o token por uma sessão real. O app confere claim assinada e perfil antes de abrir o `SismorcegoShell`.
+- Início: `2026-11-07T01:56:35.185Z` — **06/11/2026 às 22:56:35.185**, Fortaleza.
+- Expiração: `2026-12-07T01:56:35.185Z` — **06/12/2026 às 22:56:35.185**, Fortaleza.
 
-Foram removidos importador JSON, código de instalação, módulo Android e script de provisionamento manual. Não há login, senha, QR Code ou aprovação de aparelhos. O status pode ser consultado sem sessão, permitindo recuperar automaticamente uma instalação cuja sessão local se perdeu.
+São datas globais, iguais para todos os aparelhos. A data de instalação não cria outro período.
 
-A sessão é persistida pelo adaptador criptografado existente, usando Android Keystore/iOS Keychain. Cada instalação tem sua própria sessão renovável, embora compartilhe o UID. Nenhum custom token, refresh token, senha, ADC ou chave privada foi colocado no código, APK ou Git. UID, URL e configuração pública do Firebase são identificadores, não segredos.
+Os três registros reais foram lidos e comparados por hash antes/depois dos testes: conteúdo e atualização preservados. Os dois usuários normais e suas informações, claims e permissões IAM anteriores também foram preservados.
 
-Quando a opção nativa de avaliação está desativada, permanece a autenticação normal. O APK `emulator` usa somente o projeto demo local; o `homologation` usa somente o Firebase real. Não há fallback entre ambientes.
+## Como o aplicativo entra
 
-## Prazo e recuperação
+Depois da splash existente, o SDK Firebase autentica automaticamente com `signInWithEmailAndPassword`. Não há login visível, código de instalação, QR Code, JSON, ativação manual ou cadastro de celulares.
 
-O backend usa seu relógio; as regras usam `request.time`. Quando o prazo vence, ainda não começou, está suspenso ou malformado/ausente, leituras e escritas protegidas desse UID são negadas. Usuários normais não dependem da configuração da avaliação.
+Uma sessão já persistida é reutilizada; uma sessão perdida ou um refresh token revogado pode ser recuperado automaticamente com a credencial compartilhada. A persistência continua no adaptador criptografado existente, usando Android Keystore/iOS Keychain. Suspensão e expiração da avaliação não apagam a sessão ou a fila local.
 
-O UID compartilhado pode fazer `get` no controle mesmo vencido. Nenhum cliente pode listar a coleção ou modificar o documento. Edição no Console depende do IAM administrativo.
+Antes de abrir o Shell, o app exige o UID esperado, conta não anônima, claim de avaliação, configuração válida e perfil coordenador obtido do servidor. O caminho de autenticação normal foi mantido quando a opção nativa de avaliação está desativada.
 
-O app acompanha alterações do controle pelo servidor, revalida a cada 45 segundos em primeiro plano e ao reconectar. Ao retornar do segundo plano exige nova verificação. A autorização local dura no máximo 60 segundos, limitada pelo prazo e ID token, com relógio monotônico e desconto da duração da requisição. Abertura sem internet bloqueia as telas protegidas. Falha transitória durante o uso conserva apenas o restante dessa autorização curta; cache e data do celular não removem bloqueios conhecidos.
+Referências oficiais: [e-mail e senha](https://firebase.google.com/docs/auth/web/password-auth), [renovação de ID token](https://firebase.google.com/docs/reference/js/auth#getidtokenresult) e [informações do ID token](https://firebase.google.com/docs/reference/js/auth.idtokenresult).
 
-Suspender ou vencer não apaga sessão nem fila criptografada. Prorrogar/reativar reutiliza ou restabelece a sessão automaticamente. Não é preciso reinstalar, emitir arquivos ou tocar nos celulares.
+## Credencial no APK e compilação
 
-Um aparelho desconectado não recebe suspensão instantaneamente. As regras negam novos pedidos ao servidor; elas não retiram dados já vistos, capturas ou PDFs exportados.
+A senha aleatória da conta de aplicação foi colocada somente no APK de homologação e no arquivo local de compilação:
 
-## Controle pelo computador
+`C:\\Users\\bradg\\.sismorcego\\evaluation-credentials.properties`
 
-Abra o [Firestore do projeto](https://console.firebase.google.com/project/sismorcego-50b25/firestore/databases/-default-/data) e localize `configuracoes` → `avaliacaoCoordenadores`.
+Esse arquivo fica fora do repositório, com ACL restrita ao usuário Windows. Contém apenas `email` e `password` da conta compartilhada. **Não contém credencial administrativa.** A senha não é impressa nos logs nem registrada neste documento/Git.
 
-| Campo | Tipo no Console | Uso |
+O Gradle lê esse arquivo por padrão; também aceita `SISMORCEGO_EVALUATION_CREDENTIALS_FILE` ou a propriedade `sismorcegoEvaluationCredentialsFile` para indicar outra cópia local. O build de homologação falha se a credencial estiver ausente. O APK de emuladores tem somente uma credencial fictícia e aponta exclusivamente ao projeto demo local.
+
+Os valores são compilados em campos nativos de `BuildConfig`, acessados pelo módulo `SismorcegoBuild`. **Podem ser recuperados do APK**, conforme a decisão explícita do proprietário para esta avaliação temporária. Não há tentativa de apresentar ofuscação como proteção da senha.
+
+A conferência do APK encontrou a credencial compartilhada no DEX de homologação, sua ausência no DEX do emulador, nenhum arquivo ADC ou bloco completo de chave privada, e nenhuma referência ao antigo endpoint de emissão no bundle. Constantes genéricas de formato de chave nas bibliotecas não são chaves administrativas.
+
+Para compilar novamente nesta estação, mantenha o arquivo externo e use o build de homologação existente. Em outra estação, forneça esse arquivo localmente antes da compilação; isso é preparação do build, não configuração dos celulares. O arquivo não precisa ser entregue aos coordenadores.
+
+Não altere a senha para prorrogar a avaliação. A prorrogação é feita somente no documento de prazo. Se a senha compartilhada for substituída, APKs com a senha anterior não poderão restabelecer uma sessão perdida até que a credencial de compilação seja atualizada e o APK correspondente distribuído.
+
+## Controle de prazo pelo PC
+
+Abra o [Firestore do projeto](https://console.firebase.google.com/project/sismorcego-50b25/firestore/databases/-default-/data) e localize:
+
+`configuracoes/avaliacaoCoordenadores`
+
+| Campo | Tipo | Uso |
 | --- | --- | --- |
-| `enabled` | boolean | `true` habilita, `false` suspende |
+| `enabled` | boolean | `true` permite avaliação; `false` suspende |
 | `startAt` | timestamp | Início global |
 | `expiresAt` | timestamp | Fim global, exclusivo |
 
-Não grave datas como strings. Fortaleza é UTC−3; confira o fuso exibido pelo Console.
+Não substitua timestamps por textos. Confira o fuso exibido no Console; Fortaleza é UTC−3.
 
-O documento preparado contém `startAt: 2026-11-06T19:39:31.360Z` e `expiresAt: 2026-12-06T19:39:31.360Z`, com `enabled: false`. **Na ativação efetiva, depois de publicar e verificar o serviço, redefinir o início para o horário do servidor e a expiração para 30 dias depois; só então habilitar.** A espera por faturamento não deve consumir o período.
-
-Para prorrogar, edite somente `expiresAt`. Partindo de 06/12/2026 às 16:39:31.360 em Fortaleza:
+Para prorrogar, altere somente `expiresAt`. Exemplos a partir do prazo atual, em Fortaleza:
 
 | Acréscimo | Nova expiração |
 | --- | --- |
-| 15 dias | 21/12/2026, mesmo horário |
-| 30 dias | 05/01/2027, mesmo horário |
-| 60 dias | 04/02/2027, mesmo horário |
+| 15 dias | 21/12/2026 às 22:56:35.185 |
+| 30 dias | 05/01/2027 às 22:56:35.185 |
+| 60 dias | 04/02/2027 às 22:56:35.185 |
 
-Para o exemplo solicitado de 06/01/2027, escolha essa data diretamente: mês civil e 30 dias não são equivalentes.
+Para uma data específica, como 06/01/2027, selecione essa data diretamente. Mês civil e 30 dias não são sempre iguais.
 
-Para suspender, defina `enabled: false`. Para reativar, coloque uma expiração futura, confira que o início já chegou e defina `enabled: true`. Os aplicativos verificam e recuperam o acesso automaticamente.
+Para suspender, defina `enabled: false`. Para reativar, confirme um início passado, escolha uma expiração futura e defina `enabled: true`. Os aplicativos recuperam o acesso automaticamente, sem reinstalação ou nova ativação.
 
-Para encerrar definitivamente, mantenha `enabled: false`. Como defesa adicional, desabilite a conta compartilhada no Authentication e revogue suas sessões. Desabilitar a conta ou revogar apenas refresh tokens não substitui o bloqueio nas regras: ID tokens já emitidos podem durar até uma hora. Enquanto avaliação e conta estiverem autorizadas, revogar somente refresh tokens permite obter outra sessão automaticamente. Não há revogação individual nesta arquitetura sem identificação/controle por dispositivo.
+Para encerrar definitivamente, mantenha `enabled: false`. Opcionalmente desabilite a conta no Authentication e revogue suas sessões. Revogar apenas refresh tokens não encerra a avaliação: a entrada automática pode obter outra sessão enquanto a conta e o prazo estiverem autorizados. ID tokens Firebase normalmente duram até uma hora; o prazo da avaliação é uma autorização separada.
 
-## Infraestrutura e IAM
+## Regras e comportamento sem rede
 
-Novo backend isolado em `functions-evaluation`, codebase `coordinator-evaluation`, função HTTP gen2 `evaluationAccess`, região `southamerica-east1`, Node.js 22. A função antiga de FCM em `functions/` não foi incluída nem publicada.
+As regras já publicadas foram preservadas e comparadas integralmente com o arquivo local. Elas exigem `enabled: true` e `startAt <= request.time < expiresAt` para o UID da avaliação. **O horário do celular não autoriza leituras ou escritas.** As contas normais não dependem desse documento.
 
-URL prevista: `https://southamerica-east1-sismorcego-50b25.cloudfunctions.net/evaluationAccess`.
+A conta de avaliação pode consultar o controle mesmo vencido, permitindo reconhecer uma prorrogação. Nenhum cliente pode editar o controle ou listar sua coleção. A edição no Console continua restrita ao IAM administrativo.
 
-Permissões existentes reutilizadas:
+A interface usa a emissão de um ID token recém-renovado como referência para os seus timers, com margem conservadora para segundos/latência e relógio monotônico. Claims interpretadas no cliente não substituem autorização: **uma leitura do perfil exclusivamente do servidor precisa passar pelas regras antes de liberar a interface**. A leitura do perfil valida também o prazo real no Firestore.
 
-| Papel customizado | Permissões | Vinculação |
-| --- | --- | --- |
-| `SismorcegoEvaluationRead` | `firebaseauth.users.get`, `datastore.entities.get` | Emissor no projeto |
-| `SismorcegoEvaluationSignBlob` | `iam.serviceAccounts.signBlob` | Emissor sobre ele próprio |
-| `SismorcegoEvaluationImpersonate` | `iam.serviceAccounts.getAccessToken` | Operador sobre o emissor |
+Há listener do controle, revalidação a cada 45 segundos em primeiro plano, ao reconectar e ao retornar ao app. A autorização local tem no máximo 60 segundos e é limitada pelo prazo e ID token. Uma abertura sem rede bloqueia o acesso às telas protegidas. Durante perda transitória de conexão, uma sessão em uso conserva somente o restante dessa autorização curta. Suspensão/expiração conhecida nunca é removida por cache ou data do celular.
 
-O operador `sismorcego@gmail.com` mantém Owner preexistente. Nenhum papel administrativo adicional foi atribuído. O runtime não precisa criar usuários, escrever ocorrências/configurações ou alterar claims. ADC usa impersonação; não há chave privada baixada.
+O app continua verificando após expiração/suspensão e se recupera quando o prazo é estendido. Uma alteração do controle invalida verificações antigas ainda em andamento. O bloqueio não remove registros salvos localmente.
 
-Auth, Firestore, IAM Credentials e API Cloud Functions já estavam disponíveis. Cloud Run, Cloud Build e Artifact Registry permaneciam desabilitados na auditoria; não havia funções v1/v2 publicadas. Projeto continua Spark, sem faturamento habilitado.
+Um aparelho desconectado não recebe uma suspensão instantaneamente. As regras negam novos pedidos ao servidor; dados já vistos, capturas ou PDFs exportados não podem ser retirados por essas regras.
 
-**Cloud Functions exige Blaze para publicação.** Emuladores não exigem esse upgrade. Referências: [pré-requisitos oficiais](https://firebase.google.com/docs/functions/get-started), [planos Firebase](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans), [custom tokens](https://firebase.google.com/docs/auth/admin/create-custom-tokens) e [sessões](https://firebase.google.com/docs/auth/admin/manage-sessions).
+## Cloud Functions e IAM
 
-Após autorização, conferir a conta de faturamento, serviços e identidades gerenciadas exigidas pela plataforma. Não conceder privilégios novos ao runtime sem consultar o proprietário. Escopo de implantação previsto:
+Foram removidos `functions-evaluation`, o endpoint `evaluationAccess`, o cliente HTTP emissor e a configuração de Functions/emulador de Functions em `firebase.json`. Nenhuma função desse backend chegou a ser publicada; não foi preciso excluir recursos reais.
 
-```powershell
-firebase deploy --only functions:coordinator-evaluation --project sismorcego-50b25
-```
+A aplicação não depende de Cloud Functions, Cloud Run, IAM Credentials, serviço emissor ou chave administrativa para entrar. Os testes locais executam somente Auth e Firestore.
 
-Não executar antes da autorização de faturamento. Regras foram publicadas separadamente com `--only firestore:rules`, sem índices, Functions ou outros serviços.
+A configuração administrativa/ADC e os papéis mínimos anteriormente autorizados foram preservados fora do APK, sem ampliar permissões. A conta de serviço emissora anterior não é mais utilizada pelo aplicativo. Não foram removidos recursos administrativos que já existiam nem alteradas suas vinculações.
 
-## Proteções e limites
+O código legado de FCM em `functions/`, anterior a esta avaliação, continua inativo e fora da configuração de implantação. Push e Storage permanecem desativados. Spark continua sujeito às quotas gratuitas de Auth/Firestore; nenhum faturamento foi habilitado.
 
-Endpoint aceita GET de status e POST JSON somente com `{ "version": 1 }`. O chamador não define UID, papel ou datas. Respostas têm `no-store`; o código não registra tokens, corpos de pedidos, usuários ou IPs brutos.
+O cache ignorado `functions-evaluation/node_modules` permanece no disco, sem uso. Sua limpeza recursiva foi recusada pela revisão automática com a indicação “bloqueado por política”; não foi tentado contornar esse bloqueio. Código, manifesto, lockfile e configuração do backend foram removidos normalmente.
 
-Configuração: zero instâncias mínimas, uma máxima, concorrência 16, memória 256 MiB e timeout 15 segundos. Limitador em memória: 60 emissões/IP/10 minutos e 120 globais/10 minutos; status 180/IP/minuto e 600 globais/minuto. Chaves são hashes; tabela limitada e janelas expiram. Contadores reiniciam em cold starts: **não são quota durável/distribuída nem teto de gastos**. Redes compartilhadas podem atingir limites e precisar aguardar.
+## Interface e funcionalidades preservadas
 
-O endpoint é público pelo fluxo sem ativação individual. Quem souber URL/protocolo pode solicitar a conta enquanto autorizada, inclusive sem instalar o APK. Ele não comprova identidade humana. Essa é uma consequência da distribuição/conta compartilhada aceita pelo proprietário; CORS não impede clientes nativos ou scripts.
+Mantidos splash somente na abertura, tutorial, cinco abas, Painel/mapa/gráficos, formulários, alertas, sincronização, PDF, responsável humano por ocorrência, animações adaptativas, acessibilidade e correções de teclado/dock/scrollbar.
 
-App Check/Play Integrity não foi imposto: APK fora da Play exige configuração compatível e isso não identifica coordenadores. Não foram criadas listas ou barreiras individuais. Encerre o controle global ao terminar a avaliação.
+Minha conta mostra `Sismorcego`, e-mail `************` e sem alteração de senha. O nome humano informado por aparelho continua em `nomeAcs`, histórico e PDF; a identidade técnica compartilhada não substitui o responsável. O tutorial continua adiando a carga dos registros até ser concluído/pulado.
 
-Blaze possui franquias, mas build, artefatos, execução, rede e logs podem gerar cobranças. Instância máxima e limitadores reduzem exposição, sem garantir custo zero ou teto financeiro.
+O nome do APK real continua `Sismorcego`; pacote `com.sismorcego.homologacao`. O APK `com.sismorcego.emulador` é somente para dados fictícios locais.
 
-## Preservação
+## Testes e evidências
 
-Mantidos splash somente na abertura, tutorial, cinco abas, Painel/mapa/gráficos, formulários, alertas, sincronização, PDFs, responsável humano, animações adaptativas, acessibilidade e correções de teclado/dock/scrollbar. A tela de status usa transição existente com entrada, saída e movimento reduzido.
+- **627 testes / 60 suítes do app aprovados.**
+- **72 testes / 4 suítes Firebase aprovados**, com SDKs reais contra Auth/Firestore locais. Incluem dois clientes no mesmo UID, sessão perdida, renovação, conta desabilitada, alteração de claim/perfil, expiração, prorrogação, suspensão, restauração, conexão e preservação das contas normais.
+- **Integração real Spark aprovada:** o controlador atual do aplicativo foi executado com dois clientes independentes, usando senha e Firebase reais. Foram confirmados perfil/claim, três registros e estado dos alertas, reutilização da sessão, perda/recuperação de sessão, bloqueio de leituras pelas regras durante expiração/suspensão e restauração automática após alteração do controle.
+- **APK real instalado no Android 15/API 35**, AVD exclusivo `SismorcegoAutomaticQA35`: instalação limpa abre o passo 1 do guia sem login; Registros carregam os três registros reais; Painel e Alertas abrem; expiração e suspensão mostram bloqueio; prorrogação/reativação restauram o acesso. Capturas adicionais documentam Minha conta, reabertura e reconexão.
+- **Builds de homologação/emulador aprovados**, bundle atual conferido dentro dos APKs e ABIs `arm64-v8a` / `x86_64`.
+- ESLint dos arquivos JS/CJS alterados/novos: **zero erros e avisos**. `git diff --check` aprovado.
+- Hashes dos três documentos reais e seus tempos de atualização preservados. Dois usuários normais e IAM preexistente preservados. Nenhuma ocorrência criada, editada ou excluída.
 
-Minha conta mostra `Sismorcego`, e-mail `************`, sem alteração de senha. O responsável informado no aparelho continua em `nomeAcs`, histórico e PDF; a conta compartilhada não é usada como nome humano. Push e Storage continuam desativados. APK homologation mantém nome `Sismorcego` e pacote `com.sismorcego.homologacao`.
+Os dois clientes simultâneos são instâncias independentes dos SDKs, não dois celulares físicos. O teste Android foi feito em um AVD. A limitação de renderização observada anteriormente no Android 37/16 KB permanece sem certificação; essa simplificação não altera as dependências nativas envolvidas nem afirma resolvê-la.
 
-## Validação
+Evidências locais ignoradas pelo Git: `android/app/build/evaluation-spark-qa/`, com `tests-app.log`, `tests-firebase.log`, `lint.log`, `build.log`, `account-configured.json`, `control-active.json`, `real-session-verification.json`, `records-before.json`, `iam-final.json`, `apk-verification.json`, `android-verification.json` e capturas `local-*` / `real-*`. A senha não aparece nesses relatórios.
 
-- **624 testes / 60 suítes do app aprovados.**
-- **83 testes / 5 suítes Firebase aprovados.** SDKs reais contra Auth/Firestore/Functions locais e transporte HTTP real. Dois clientes independentes usam o mesmo UID; restauração, expiração, prorrogação, suspensão, revogação, conexão e recuperação exercitados. Contas normais preservadas; configuração protegida contra escrita do cliente.
-- ESLint dos JS/CJS novos/alterados: zero erros e um aviso de nome de parâmetro em teste. `git diff --check` aprovado.
-- Bundle de produção e builds `assembleEmulator` / `assembleHomologation`: sucesso, ABIs `arm64-v8a` e `x86_64`.
-- Integração real: conta/perfil/claim, assinatura remota, troca do custom token em memória e bloqueio de ocorrências durante suspensão confirmados. Nenhum arquivo de ativação gerado. **Novo fluxo automático real ainda não foi validado**, pois o endpoint não está publicado.
-- Functions local executou Node 24 do host; produção declara Node 22 e ainda depende de implantação.
-- Admin SDK 14.5.0 / Functions SDK 7.4.0. Auditoria npm: seis moderadas transitivas, zero altas/críticas; não foram forçadas dependências incompatíveis.
+## APK e arquivos modificados
 
-No Android 15/API 35, AVD exclusivo `SismorcegoAutomaticQA35`, a instalação limpa entrou automaticamente no passo 1 do guia. Foram confirmados Registros, Painel, Alertas, formulário coordenador com responsável individual, conta mascarada, reabertura após force-stop, bloqueio por expiração e suspensão, recuperação automática por prorrogação/reativação e abertura sem rede seguida de recuperação automática ao reconectar. Nenhum arquivo de ativação foi usado. Os dois clientes simultâneos foram exercitados pelos SDKs nos testes de integração; não se trata de dois celulares físicos.
+APK para os coordenadores: `android/app/build/outputs/apk/homologation/app-homologation.apk`.
 
-O ambiente Android 37/16 KB avisou sobre incompatibilidade das dependências nativas existentes e encerrou durante desenho SVG. A falha não se repetiu no Android 15 com o mesmo APK. Ela permanece uma limitação observada: não há certificação de suporte a páginas de 16 KB e a distribuição deve considerar essa conferência pendente. Não foram alterados SVGs, telas ou dependências nativas para tentar contornar o problema fora do escopo.
+- Tamanho: 166163977 bytes.
+- SHA-256: `b906aea2625bd8838def1c80afab559add02cba7ef7b7c81cfbc5e6085c26081`.
 
-As regras mantêm os validadores existentes e acrescentam o prazo somente para a conta de avaliação. Dois avisos de tipos preexistentes permanecem na compilação. Antes da distribuição ampla, revisar o protótipo:
+APK local de testes: `android/app/build/outputs/apk/emulator/app-emulator.apk`, SHA-256 `e241d24a02ac28c8c6aed823c1bf6c84ba148a571205f77c4b11da3452d2aad1`.
 
-> I've set up prototype Security Rules to keep the data in Firestore safe. They are designed to be secure for requiring authenticated role/ownership checks, enforcing the evaluation deadline with server time, and denying client changes to the evaluation configuration. However, you should review and verify them before broadly sharing your app. If you'd like, I can help you harden these rules.
+Alterados: `src/services/evaluationSession.js`, `appEnvironment.js`, `src/hooks/EvaluationAuthProvider.js`, texto de indisponibilidade em `EvaluationSetupScreen.js`, `android/app/build.gradle`, `SismorcegoBuildPackage.kt`, `firebase.json`, `scripts/run-firebase-emulators.cjs`, `.eslintrc.js`, testes de sessão/integração e este documento. Novo: `src/services/evaluationPolicy.js` e seu teste.
 
-## Arquivos, APK e evidências
+Removidos: `src/services/evaluationApi.js`, seu teste, `emulator-tests/evaluationAccess.test.js` e os quatro arquivos do backend `functions-evaluation`. Regras, navegação, telas dos coordenadores e dependências comuns não foram revertidas.
 
-Implementação: `src/services/{evaluationApi,evaluationSession,appEnvironment}.js`, `src/hooks/EvaluationAuthProvider.js`, `src/pages/Auth/EvaluationSetupScreen.js`, registro Android `SismorcegoBuildPackage.kt`, `functions-evaluation/{index.js,access.js,package.json,package-lock.json}`, `firebase.json` e `firestore.rules`.
-
-Testes: `__tests__/evaluation{Api,StatusScreen,Session,AuthProvider}.test.js`, `__tests__/startupSplash.test.js`, `emulator-tests/{coordinatorEvaluation,evaluationAccess,evaluationRules}.test.js`, `.eslintrc.js` e `scripts/run-firebase-emulators.cjs`.
-
-Removidos: `scripts/provision-coordinator-device.cjs`, `SismorcegoProvisioningModule.kt` e `__tests__/evaluationProvisioningTool.test.js`. Este documento substitui as instruções antigas de ativação manual.
-
-APK real preparado e instalado no AVD: `android/app/build/outputs/apk/homologation/app-homologation.apk`, ainda dependente do backend. Tamanho: 166163977 bytes. SHA-256: `bd807ce1fb00f303f3c5824fbe7c9d39cf57eb5f3be1fbdea9f632c7b45708da`.
-
-APK local: `android/app/build/outputs/apk/emulator/app-emulator.apk`. SHA-256: `40f8b3633f4a2902ec9b78c8e1955ca1bcf863240af63b8178819b07e1fc2911`. Ambos contêm o bundle atual e ABIs `arm64-v8a`/`x86_64`, conferidos dentro do ZIP.
-
-Evidências ignoradas pelo Git em `android/app/build/evaluation-auto-qa/`: snapshot inicial, `tests-app-delivery.log`, `tests-firebase-delivery.log`, `lint-delivery.log`, `build-verified.log`, `rules-deploy-verified.log`, backup `firestore-before.rules`, `real-policy-verification.json`, `iam-final.json`, `apk-verification.json`, `android-verification.json` e capturas `automatic-*.png/xml`. A validação real não escreve credenciais nos logs. A conferência IAM confirmou os dois usuários originais e as vinculações anteriores preservados, papéis customizados iguais ao plano aprovado e zero chaves privadas geradas.
-
-Bundle e recursos foram gerados na pasta QA e sobrepostos com init Gradle temporário. Os 270 arquivos originalmente não rastreados, inclusive bundle/recursos de `src/main`, são preservados. Nenhuma outra branch, main ou remoto deve ser alterado; somente commit local na branch solicitada.
+Bundle/recursos foram gerados na pasta QA e sobrepostos com init Gradle temporário, sem sobrescrever os arquivos locais de `src/main`. Os 270 arquivos originalmente não rastreados são preservados. A entrega recebe somente commit local na branch solicitada; nenhum push ou alteração da main.

@@ -11,7 +11,9 @@ class SismorcegoBuildModule(context: ReactApplicationContext) : ReactContextBase
   override fun getConstants(): MutableMap<String, Any> = mutableMapOf(
     "realFirebase" to BuildConfig.SISMORCEGO_REAL_FIREBASE,
     "coordinatorEvaluation" to BuildConfig.SISMORCEGO_COORDINATOR_EVALUATION,
-    "firebaseEmulator" to (BuildConfig.DEBUG && BuildConfig.SISMORCEGO_USE_EMULATORS)
+    "firebaseEmulator" to (BuildConfig.DEBUG && BuildConfig.SISMORCEGO_USE_EMULATORS),
+    "evaluationEmail" to BuildConfig.SISMORCEGO_EVALUATION_EMAIL,
+    "evaluationPassword" to BuildConfig.SISMORCEGO_EVALUATION_PASSWORD
   )
 }
 

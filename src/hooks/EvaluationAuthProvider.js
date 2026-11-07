@@ -14,7 +14,7 @@ export default function EvaluationAuthProvider({ children }) {
     // Own the controller in this effect so a StrictMode cleanup/setup cycle
     // never reuses a disposed session or duplicates Firebase listeners.
     const session = createEvaluationSession({ auth, db, projectId: app?.options?.projectId,
-      backendEnabled: REAL_FIREBASE_HOMOLOGATION || USE_FIREBASE_EMULATORS, emulator: USE_FIREBASE_EMULATORS,
+      firebaseEnabled: REAL_FIREBASE_HOMOLOGATION || USE_FIREBASE_EMULATORS,
       online: async () => { const net = await NetInfo.fetch(); return Boolean(net.isConnected && net.isInternetReachable !== false); } });
     controller.current = session;
     const unsubscribe = session.subscribe(setEvaluation);

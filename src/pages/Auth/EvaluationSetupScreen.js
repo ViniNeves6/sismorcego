@@ -15,7 +15,7 @@ const messages = {
   'not-started': ['Avaliação ainda não iniciada', 'O aplicativo liberará o acesso automaticamente quando o período começar.'],
   offline: ['Conecte-se à internet', 'É necessário verificar o período de avaliação para acessar o aplicativo. Seus registros salvos continuam neste aparelho.'],
   blocked: ['Avaliação indisponível', 'O acesso precisa ser revisado pela equipe. A verificação será repetida automaticamente.'],
-  unavailable: ['Não foi possível conectar', 'O serviço de avaliação está temporariamente indisponível. O aplicativo tentará novamente automaticamente.'],
+  unavailable: ['Não foi possível conectar', 'O acesso à avaliação está temporariamente indisponível. O aplicativo tentará novamente automaticamente.'],
 };
 
 // A status screen only: no login, installation codes, picker or activation flow.

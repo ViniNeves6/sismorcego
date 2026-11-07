@@ -5,6 +5,9 @@ import { NativeModules } from 'react-native';
 export const USE_FIREBASE_EMULATORS = NativeModules.SismorcegoBuild?.firebaseEmulator === true;
 export const COORDINATOR_EVALUATION = NativeModules.SismorcegoBuild?.coordinatorEvaluation === true;
 export const REAL_FIREBASE_HOMOLOGATION = !USE_FIREBASE_EMULATORS && NativeModules.SismorcegoBuild?.realFirebase === true;
-export const EVALUATION_ACCESS_URL = !COORDINATOR_EVALUATION ? '' : USE_FIREBASE_EMULATORS
-  ? 'http://10.0.2.2:5001/demo-sismorcego-spark/southamerica-east1/evaluationAccess'
-  : REAL_FIREBASE_HOMOLOGATION ? 'https://southamerica-east1-sismorcego-50b25.cloudfunctions.net/evaluationAccess' : '';
+// Evaluation-only application credentials supplied by the native build. They
+// can be recovered from this temporary APK, as accepted by its distributor.
+// Administrative credentials are never supplied to the application.
+export const EVALUATION_CREDENTIALS = COORDINATOR_EVALUATION && (REAL_FIREBASE_HOMOLOGATION || USE_FIREBASE_EMULATORS)
+  ? { email: NativeModules.SismorcegoBuild?.evaluationEmail || '', password: NativeModules.SismorcegoBuild?.evaluationPassword || '' }
+  : null;
