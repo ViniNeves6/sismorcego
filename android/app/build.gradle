@@ -137,6 +137,12 @@ android {
 }
 
 dependencies {
+    constraints {
+        implementation("io.legere:pdfiumandroid:1.0.32") {
+            because("The native PDF viewer requires ELF segments aligned for 16 KB pages")
+        }
+    }
+
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
