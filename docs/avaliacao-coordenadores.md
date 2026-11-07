@@ -138,9 +138,11 @@ Evidências locais ignoradas pelo Git: `android/app/build/evaluation-spark-qa/`,
 APK para os coordenadores: `android/app/build/outputs/apk/homologation/app-homologation.apk`.
 
 - Tamanho: 166163977 bytes.
-- SHA-256: `b906aea2625bd8838def1c80afab559add02cba7ef7b7c81cfbc5e6085c26081`.
+- SHA-256: `49e440ed81a2f5aafca6405e788c11729b2cfef7dc520b1da9fb20012a05fcf7`.
 
-APK local de testes: `android/app/build/outputs/apk/emulator/app-emulator.apk`, SHA-256 `e241d24a02ac28c8c6aed823c1bf6c84ba148a571205f77c4b11da3452d2aad1`.
+APK local de testes: `android/app/build/outputs/apk/emulator/app-emulator.apk`, SHA-256 `3c4132bb4e2a6581c92e0b71086892b9fc62c8cdfda14dc696324817377d855b`.
+
+Os APKs acima incluem também a correção nativa de retorno da barra após fechar o teclado, descrita em `docs/correcao-fechamento-teclado.md`. Autenticação, credenciais e configuração de prazo permanecem as mesmas desta entrega Spark.
 
 Alterados: `src/services/evaluationSession.js`, `appEnvironment.js`, `src/hooks/EvaluationAuthProvider.js`, texto de indisponibilidade em `EvaluationSetupScreen.js`, `android/app/build.gradle`, `SismorcegoBuildPackage.kt`, `firebase.json`, `scripts/run-firebase-emulators.cjs`, `.eslintrc.js`, testes de sessão/integração e este documento. Novo: `src/services/evaluationPolicy.js` e seu teste.
 
