@@ -16,7 +16,7 @@ export default function RootNavigation() {
 
   return (
     <NavigationContainer theme={theme}>
-      {user ? <AppDrawer /> : <AuthStack />}
+      {(__DEV__ || user) ? <AppDrawer /> : <AuthStack />}
     </NavigationContainer>
   );
 }

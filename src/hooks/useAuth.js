@@ -22,7 +22,7 @@ import logger from "../utils/logger";
  * - Retorna { user: null, loading: false } e mantÃ©m a API do contexto disponÃ­vel
  * - Para reativar autenticaÃ§Ã£o real depois, basta mudar para false
  */
-const AUTH_TEST_MODE = false;
+const AUTH_TEST_MODE = __DEV__;
 
 const AuthContext = createContext({
   user: null,
