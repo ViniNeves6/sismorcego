@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>sismorcego</string>
+	<string>Sismorcego</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -26,23 +26,27 @@
 	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-	  <!-- Do not change NSAllowsArbitraryLoads to true, or you will risk app rejection! -->
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Precisamos da localização para registrar o ponto do atendimento durante o uso do app.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Precisamos da câmera para registrar a foto do atendimento no formulário.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Precisamos acessar suas fotos para anexar uma imagem ao registro.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Precisamos da localização para registrar o ponto do atendimento durante o uso do app.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Precisamos salvar a foto no seu dispositivo para manter o registro offline.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Precisamos acessar suas fotos para anexar uma imagem ao registro.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Feather.ttf</string>
+		<string>PlusJakartaSans-Regular.ttf</string>
+		<string>PlusJakartaSans-Medium.ttf</string>
+		<string>PlusJakartaSans-SemiBold.ttf</string>
+		<string>PlusJakartaSans-Bold.ttf</string>
+		<string>PlusJakartaSans-ExtraBold.ttf</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>

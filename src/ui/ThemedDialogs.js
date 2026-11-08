@@ -273,9 +273,9 @@ export function ThemedInfoModal({
   );
 }
 
-export function SignOutConfirmationModal(props) {
+export function SignOutConfirmationModal({ message, ...props }) {
   return <ThemedInfoModal {...props} title="Sair da conta?" confirmLabel="Sair"
-    message="Deseja encerrar sua sessão no Sismorcego?" />;
+    message={message || 'Deseja encerrar sua sessão no Sismorcego?'} />;
 }
 
 const styles = StyleSheet.create({

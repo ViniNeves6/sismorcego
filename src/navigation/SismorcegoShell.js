@@ -56,7 +56,6 @@ import { generateRegistroPdf, savePdf } from '../services/registroPdf';
 import PdfOptionsSheet from '../pages/Main/buscar/PdfOptionsSheet';
 import PdfViewerModal from '../pages/Main/buscar/PdfViewerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SpotlightWelcomeModal, { SPOTLIGHT_WELCOME_KEY } from '../ui/SpotlightWelcomeModal';
 import SpotlightGuideModal, { SPOTLIGHT_STORAGE_KEY } from '../ui/SpotlightGuideModal';
 import { completeRecordDraft, getRecordDraftIdentity } from '../services/recordDraftIdentity';
 import { isRecordOwner, canModifyRecord, assertCanModifyRecord, recordIdentity } from '../services/recordLifecycle';
@@ -174,8 +173,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
 
   const toastRef = useRef(null);
 
-  // Welcome & Interactive Guide state
-  const [welcomeVisible, setWelcomeVisible] = useState(false);
+  // Interactive Guide state (a cena de boas-vindas agora é a abertura do app)
   const [guideVisible, setGuideVisible] = useState(false);
   const [guideLayoutActive, setGuideLayoutActive] = useState(false);
   const [initialLayoutReady, setInitialLayoutReady] = useState(false);
@@ -189,7 +187,8 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
   useEffect(() => {
     if (initialLayoutReady && initialGuideSeen) reportInitialReady();
   }, [initialLayoutReady, initialGuideSeen, reportInitialReady]);
-  const welcomeAfterGuideRef = useRef(false);
+  // Concluir o guia (não pular) leva para Registros quando ele termina de sair.
+  const homeAfterGuideRef = useRef(false);
   const guideClosingRef = useRef(false);
 
   // Target refs for interactive guide
@@ -219,7 +218,6 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
   const signOutConfirmed = useRef(false);
   const signingOut = useRef(false);
   const requestSignOut = () => {
-    if (COORDINATOR_EVALUATION) return;
     if (signOutDialog !== 'closed' || signingOut.current) return;
     signOutConfirmed.current = false;
     setSignOutDialog('open');
@@ -435,9 +433,8 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
   const handleCompleteGuide = async () => {
     try {
       await AsyncStorage.setItem(SPOTLIGHT_STORAGE_KEY, '1');
-      const welcomeShown = await AsyncStorage.getItem(SPOTLIGHT_WELCOME_KEY);
-      welcomeAfterGuideRef.current = !welcomeShown;
     } catch (_) {}
+    homeAfterGuideRef.current = true;
     guideClosingRef.current = true;
     setGuideVisible(false);
   };
@@ -446,14 +443,15 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
     if (!guideClosingRef.current) return;
     guideClosingRef.current = false;
     setGuideLayoutActive(false);
-    if (welcomeAfterGuideRef.current) {
-      welcomeAfterGuideRef.current = false;
-      setWelcomeVisible(true);
-    } else setDataEnabled(true);
+    if (homeAfterGuideRef.current) {
+      homeAfterGuideRef.current = false;
+      handleDockRegistrosPress();
+    }
+    setDataEnabled(true);
   };
 
   const handleSkipGuide = async () => {
-    welcomeAfterGuideRef.current = false;
+    homeAfterGuideRef.current = false;
     guideClosingRef.current = true;
     setGuideVisible(false);
     try {
@@ -462,7 +460,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
   };
 
   const handleStartGuide = () => {
-    welcomeAfterGuideRef.current = false;
+    homeAfterGuideRef.current = false;
     setGuideVisible(true);
   };
 
@@ -789,7 +787,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
           {activeTab === 'new' && (
             <NovaNotificacaoScreen
               reporterName={reporterName}
-              reporterRole={COORDINATOR_EVALUATION ? 'Coordenador' : undefined}
+              reporterRole={COORDINATOR_EVALUATION ? (isCoordenador ? 'Coordenador' : 'ACS (treinamento)') : undefined}
               onOpenReporterModal={() => setReporterModalVisible(true)}
               onOpenVictimInfo={(title, message) =>
                 setInfoModalState({ visible: true, title, message })
@@ -871,6 +869,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
           {activeTab === 'more' && (
               <MaisScreens
                 managedAccount={COORDINATOR_EVALUATION}
+                canSignOut
                 bottomInset={bottomInset}
                 activeSubscreen={activeMaisSubscreen}
                 keyboardVisible={keyboardVisible}
@@ -1203,6 +1202,9 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
         {/* 4. Themed Info Modal (#themed-modal, zIndex: 160) */}
         <SignOutConfirmationModal visible={signOutDialog === 'open'}
           onClose={cancelSignOut} onConfirm={confirmSignOut} onExited={finishSignOutDialog}
+          message={COORDINATOR_EVALUATION && !isCoordenador
+            ? 'Este aparelho entrou como ACS sem conta. Ao sair, os registros feitos aqui deixam de aparecer neste aparelho; os que já foram sincronizados continuam visíveis para a coordenação.'
+            : undefined}
           reduceMotion={reduceMotion} />
         <ThemedInfoModal
           visible={infoModalState.visible}
@@ -1266,17 +1268,6 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
           onComplete={handleCompleteGuide}
           onSkip={handleSkipGuide}
           onExited={handleGuideExited}
-          reduceMotion={reduceMotion}
-        />
-
-        {/* 8. Tela de Boas-Vindas Animada */}
-        <SpotlightWelcomeModal
-          visible={welcomeVisible}
-          onClose={() => setWelcomeVisible(false)}
-          onExited={() => {
-            handleDockRegistrosPress();
-            setDataEnabled(true);
-          }}
           reduceMotion={reduceMotion}
         />
 

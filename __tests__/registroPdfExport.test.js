@@ -111,3 +111,11 @@ test.each(['humano', 'caninoFelino', 'aves', 'producao', undefined])('exports th
   expect(pdf.getPageCount()).toBeGreaterThan(0);
   expect(m.sections.map(section => section.title)).toContain('Georreferenciamento');
 });
+
+test('PDF lists the local da agressão only when it was filled', () => {
+  const campos = r => buildCamposFicha(r, { includeNames: true, includeLocation: true });
+  const base = { tipoVitima: 'aves', municipio: 'Belém', localidade: 'Centro', detalhes: { especie: 'galinha' } };
+  expect(campos(base).some(c => c.label === 'Local da agressão')).toBe(false);
+  expect(campos({ ...base, detalhes: { ...base.detalhes, localAgressao: 'Ilha do Combu' } }))
+    .toContainEqual({ label: 'Local da agressão', value: 'Ilha do Combu' });
+});

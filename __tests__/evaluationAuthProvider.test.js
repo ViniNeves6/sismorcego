@@ -21,13 +21,14 @@ beforeEach(() => {
       publish: state => { if (active) listener?.(state); },
       dispose: jest.fn(() => { active = false; }),
       revalidate: jest.fn(), setForeground: jest.fn(),
+      signInAcs: jest.fn(async () => {}), signInCoordinator: jest.fn(async () => {}), signOut: jest.fn(async () => {}),
     };
     sessions.push(session); return session;
   });
 });
 afterEach(async () => { if (tree) await act(async () => tree.unmount()); tree = null; jest.useRealTimers(); });
 
-test('effect replay keeps a live session, discards stale events and prohibits credential changes', async () => {
+test('effect replay keeps a live session, discards stale events, delegates sign-in/out and prohibits credential changes', async () => {
   await act(async () => { tree = Renderer.create(<StrictMode><EvaluationAuthProvider><Probe /></EvaluationAuthProvider></StrictMode>); });
   expect(context.user).toBeNull();
   expect(context.evaluation.status).toBe('checking');
@@ -40,7 +41,10 @@ test('effect replay keeps a live session, discards stale events and prohibits cr
     await act(async () => old.publish({ status: 'ready', user: { uid: 'stale' } }));
   }
   expect(context.user).toEqual(user);
-  for (const action of ['signIn', 'signUp', 'resetPassword', 'signOut', 'updateUser']) {
+  for (const action of ['signUp', 'resetPassword', 'updateUser']) {
     await expect(context[action]()).rejects.toThrow('gerenciada pela equipe');
   }
+  await context.signIn('coord@example.invalid', 'secret'); await context.signInAcs(); await context.signOut();
+  expect(live.signInCoordinator).toHaveBeenCalledWith('coord@example.invalid', 'secret');
+  expect(live.signInAcs).toHaveBeenCalledTimes(1); expect(live.signOut).toHaveBeenCalledTimes(1);
 });

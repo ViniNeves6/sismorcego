@@ -1,15 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, BackHandler, Easing, Image, StatusBar, StyleSheet } from 'react-native';
+import { Animated, BackHandler, Easing, StatusBar, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import useReduceMotion from '../ui/useReduceMotion';
 import useSpeakOnMount from '../hooks/useSpeakOnMount';
-import BatSwarm from './BatSwarm';
+import WelcomeScene from '../ui/WelcomeScene';
 import { screenFadeTiming } from '../ui/screenFade';
 
-export const MIN_SPLASH_MS = 2900;
+// Tempo para o morcego pousar e o título "Bem-vindo ao Sismorcego" ser lido.
+export const MIN_SPLASH_MS = 3200;
 export const SPLASH_FADE_MS = 250;
 
-// Startup is automatic and separate from the interactive Spotlight welcome.
+// Abertura automática: a cena colorida de boas-vindas (WelcomeScene).
 export default function StartupSplash({ ready, onExited, screenTransition = false, onCovered, revealReady = true }) {
   const { colors } = useTheme();
   const reduced = useReduceMotion();
@@ -23,7 +24,7 @@ export default function StartupSplash({ ready, onExited, screenTransition = fals
   exitCallback.current = onExited;
   const coveredCallback = useRef(onCovered);
   coveredCallback.current = onCovered;
-  useSpeakOnMount('Sismorcego. Iniciando aplicativo', { priority: 100 });
+  useSpeakOnMount('Bem-vindo ao Sismorcego. Iniciando aplicativo', { priority: 100 });
 
   useEffect(() => {
     const timer = setTimeout(() => setMinimumElapsed(true), MIN_SPLASH_MS);
@@ -76,10 +77,9 @@ export default function StartupSplash({ ready, onExited, screenTransition = fals
     collapsable={false} needsOffscreenAlphaCompositing pointerEvents="auto">
     <StatusBar barStyle={revealing ? colors.statusBar || 'dark-content' : 'light-content'}
       backgroundColor={revealing ? colors.canvas : colors.brandDeep} translucent />
-    {!revealing && <Animated.View testID="splash-artwork" style={[styles.content, { opacity: contentOpacity }]}>
-      <BatSwarm reduced={reduced} />
-      <Image source={require('../assets/images/Logomarca.png')} resizeMode="contain"
-        style={[styles.mark, { tintColor: colors.onBrand }]} accessibilityLabel="Sismorcego. Iniciando aplicativo" />
+    {!revealing && <Animated.View testID="splash-artwork" style={[styles.content, { opacity: contentOpacity }]}
+      accessible accessibilityLabel="Bem-vindo ao Sismorcego. Iniciando aplicativo">
+      <WelcomeScene reduceMotion={reduced} />
     </Animated.View>}
     {screenTransition && !revealing && <Animated.View testID="splash-screen-fade" pointerEvents="none"
       accessible={false} importantForAccessibility="no-hide-descendants"
@@ -89,6 +89,5 @@ export default function StartupSplash({ ready, onExited, screenTransition = fals
 
 const styles = StyleSheet.create({
   splash: { flex: 1 },
-  content: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  mark: { width: 120, height: 95 },
+  content: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
 });

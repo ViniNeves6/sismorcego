@@ -38,7 +38,6 @@ jest.mock('../src/pages/Admin/AdminAlertsScreen', () => 'AdminAlertsScreen');
 jest.mock('../src/ui/AnimatedScreenTransition', () => ({ children }) => children);
 jest.mock('../src/ui/SwipeDismissibleToast', () => 'Toast');
 jest.mock('../src/ui/SpotlightGuideModal', () => ({ __esModule: true, default: 'SpotlightGuideModal', SPOTLIGHT_STORAGE_KEY: 'guide-seen' }));
-jest.mock('../src/ui/SpotlightWelcomeModal', () => ({ __esModule: true, default: 'SpotlightWelcomeModal', SPOTLIGHT_WELCOME_KEY: 'welcome-seen' }));
 jest.mock('../src/hooks/useNotifications', () => () => ({ notificationsEnabled: true, toggleNotifications: jest.fn() }));
 jest.mock('../src/hooks/useCoordenadorNotifications', () => jest.fn());
 jest.mock('@react-native-community/netinfo', () => ({ addEventListener: jest.fn(() => jest.fn()),fetch:jest.fn().mockResolvedValue({isConnected:true}) }));
@@ -390,23 +389,18 @@ test('guide scroll room stays mounted until its exit finishes', async () => {
   expect(tree.root.findByType('AdminPanelScreen').props.guideActive).toBe(false);
 });
 
-test.each(['acs', 'coordenador'])('continuing from welcome opens Registros after its exit for %s', async role => {
+test.each(['acs', 'coordenador'])('completing the guide opens Registros after its exit, with no welcome screen, for %s', async role => {
   session.role = role;
   await act(async () => tree.update(<SismorcegoShell navigation={navigation} />));
   await press('Mais');
   await act(async () => tree.root.findByType('MaisScreens').props.onOpenInteractiveGuide());
   await act(async () => tree.root.findByType('SpotlightGuideModal').props.onComplete());
-  await act(async () => tree.root.findByType('SpotlightGuideModal').props.onExited());
-  expect(tree.root.findByType('SpotlightWelcomeModal').props.visible).toBe(true);
-
-  await act(async () => tree.root.findByType('SpotlightWelcomeModal').props.onClose());
-  expect(tree.root.findByType('SpotlightWelcomeModal').props.visible).toBe(false);
   expect(tree.root.findAllByType('MaisScreens')).toHaveLength(1);
   expect(tree.root.findAllByType('RegistrosScreen')).toHaveLength(0);
-
-  await act(async () => tree.root.findByType('SpotlightWelcomeModal').props.onExited());
+  await act(async () => tree.root.findByType('SpotlightGuideModal').props.onExited());
   expect(tree.root.findAllByType('RegistrosScreen')).toHaveLength(1);
   expect(tree.root.findAllByType('MaisScreens')).toHaveLength(0);
+  expect(tree.root.findAllByType('SpotlightWelcomeModal')).toHaveLength(0);
 });
 
 describe('initial tutorial defers application data', () => {
@@ -472,7 +466,6 @@ describe('initial tutorial defers application data', () => {
     const guide = tree.root.findByType('SpotlightGuideModal'); expect(guide.props.visible).toBe(true);
     await act(async () => guide.props.onReady());
     expect(onInitialScreenReady).toHaveBeenCalledTimes(1); expectPaused();
-    expect(tree.root.findByType('SpotlightWelcomeModal').props.visible).toBe(false);
     await act(async () => guide.props.onReady()); expect(onInitialScreenReady).toHaveBeenCalledTimes(1);
   });
 
@@ -522,19 +515,13 @@ describe('initial tutorial defers application data', () => {
     expect(triggerSyncRecords).toHaveBeenCalledTimes(1);
     expect(subscribeDoubts).toHaveBeenCalledTimes(1);
     expect(onSnapshot).toHaveBeenCalledTimes(3);
-    expect(tree.root.findByType('SpotlightWelcomeModal').props.visible).toBe(false);
   });
 
-  test('completion waits through guide exit, welcome, and welcome exit before loading', async () => {
+  test('completion waits through the guide exit, then opens Registros and starts loading', async () => {
     await openInitialGuide();
     await act(async () => tree.root.findByType('SpotlightGuideModal').props.onComplete());
     expectPaused();
     await act(async () => tree.root.findByType('SpotlightGuideModal').props.onExited());
-    expect(tree.root.findByType('SpotlightWelcomeModal').props.visible).toBe(true);
-    expectPaused();
-    await act(async () => tree.root.findByType('SpotlightWelcomeModal').props.onClose());
-    expectPaused();
-    await act(async () => tree.root.findByType('SpotlightWelcomeModal').props.onExited());
     expect(tree.root.findAllByType('RegistrosScreen')).toHaveLength(1);
     expect(loadRecordsFromStorage).toHaveBeenCalled();
     expect(triggerSyncRecords).toHaveBeenCalledTimes(1);
@@ -542,15 +529,6 @@ describe('initial tutorial defers application data', () => {
     expect(onSnapshot).toHaveBeenCalledTimes(3);
   });
 
-  test('completing when welcome was already shown starts data after guide exit', async () => {
-    await AsyncStorage.setItem('welcome-seen', '1');
-    await openInitialGuide();
-    await act(async () => tree.root.findByType('SpotlightGuideModal').props.onComplete());
-    expectPaused();
-    await act(async () => tree.root.findByType('SpotlightGuideModal').props.onExited());
-    expect(loadRecordsFromStorage).toHaveBeenCalled();
-    expect(tree.root.findByType('SpotlightWelcomeModal').props.visible).toBe(false);
-  });
 
   test('an interrupted first tour remains pending on the next launch', async () => {
     await openInitialGuide();

@@ -28,3 +28,8 @@ jest.mock('@react-native-firebase/messaging', () => ({
   onMessage: jest.fn(() => jest.fn()), onNotificationOpenedApp: jest.fn(() => jest.fn()),
   getInitialNotification: jest.fn().mockResolvedValue(null), setBackgroundMessageHandler: jest.fn(),
 }));
+
+// O preset do Jest simula iOS, onde a ausência do módulo nativo significa
+// "versão de treinamento". Os testes partem de um build local explícito; cada
+// suíte que testa homologação/avaliação simula o próprio ambiente.
+require('react-native').NativeModules.SismorcegoBuild = {};

@@ -1,5 +1,19 @@
 # Avaliação dos coordenadores no Spark
 
+> **Atualização (08/11/2026): tela de entrada com perfil ACS ou Coordenador.** A entrada automática descrita abaixo foi substituída. Depois da splash, o app mostra a escolha de perfil:
+>
+> - **Sou ACS:** entra direto, sem senha, com uma conta **anônima do Firebase por aparelho** (`signInAnonymously`). O app cria `usuarios/{uid}` com `role: "acs"`; cada aparelho vê só os próprios registros e o coordenador vê todos.
+> - **Sou coordenador:** digita o e-mail e a senha da conta compartilhada `sismorcego-teste-coordenadores`. Qualquer outra conta é desconectada com a mensagem "Esta conta não tem acesso de coordenador".
+>
+> **Nenhuma credencial é compilada no APK.** O arquivo `evaluation-credentials.properties` não é mais lido pelo Gradle, e a homologação compila sem ele. Uma sessão perdida ou revogada volta para a tela de entrada, sem recuperação automática. "Sair" e "Trocar perfil" voltam para a escolha de perfil.
+>
+> O prazo global (`configuracoes/avaliacaoCoordenadores`) vale para os dois perfis: as regras aplicam `evaluationActive()` também a contas `sign_in_provider == "anonymous"`, que podem ler o documento de prazo.
+>
+> **Pré-requisitos no Console:** ativar o provedor **Anônimo** em Authentication › Método de login e publicar o `firestore.rules` atualizado. Sem isso, o ACS vê "O acesso de ACS ainda não foi liberado" ou "Avaliação indisponível".
+>
+> As seções sobre credencial embutida e entrada automática ficam abaixo como histórico.
+
+
 Entrega na branch exclusiva `feature/redesign-coordenadores-20261031`, após `c338ffa`. A autenticação foi simplificada por solicitação do proprietário: **e-mail e senha compartilhados, entrada automática e nenhum backend próprio**.
 
 ## Estado real

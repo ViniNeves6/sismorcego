@@ -44,7 +44,7 @@ if (variant === 'homologation') {
   fs.mkdirSync(targetDir, { recursive: true });
   fs.copyFileSync(source, target);
   const hash = crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex');
-  console.log('\nAPK DE DISTRIBUIÇÃO (Firebase real; entrada automática):');
+  console.log('\nAPK DE DISTRIBUIÇÃO (Firebase real; entrada ACS ou coordenador):');
   console.log(target);
   console.log('SHA-256: ' + hash);
 } else {

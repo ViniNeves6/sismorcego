@@ -7,6 +7,7 @@ import { createEvaluationSession } from '../services/evaluationSession';
 import AuthContext from './authContext';
 
 const managedAccount = async () => { throw new Error('Esta conta é gerenciada pela equipe responsável pela avaliação.'); };
+const unavailable = async () => { throw new Error('O acesso à avaliação ainda está sendo preparado.'); };
 export default function EvaluationAuthProvider({ children }) {
   const controller = useRef(null);
   const [evaluation, setEvaluation] = useState({ status: 'checking', user: null, role: null, reason: null });
@@ -22,14 +23,16 @@ export default function EvaluationAuthProvider({ children }) {
     const foreground = AppState.addEventListener('change', state => session.setForeground(state === 'active'));
     const network = NetInfo.addEventListener(net => { if (net.isConnected && net.isInternetReachable !== false) session.revalidate(true); });
     // Bound detection time while the app remains foregrounded. Server rules
-    // still enforce the real Firebase session and coordinator role.
+    // still enforce the real Firebase session and the chosen role.
     const periodic = setInterval(() => { if (AppState.currentState === 'active') session.revalidate(); }, 45000);
     return () => { clearInterval(periodic); foreground.remove(); network(); unsubscribe(); session.dispose();
       if (controller.current === session) controller.current = null; };
   }, []);
+  const call = name => (...args) => controller.current ? controller.current[name](...args) : unavailable();
   return <AuthContext.Provider value={{ user: evaluation.user, role: evaluation.role, loading: false,
     evaluation, retrySession: () => controller.current?.revalidate(true),
-    signIn: managedAccount, signUp: managedAccount, signOut: managedAccount, resetPassword: managedAccount, updateUser: managedAccount }}>
+    signInAcs: call('signInAcs'), signIn: call('signInCoordinator'), signOut: call('signOut'),
+    signUp: managedAccount, resetPassword: managedAccount, updateUser: managedAccount }}>
     {children}
   </AuthContext.Provider>;
 }

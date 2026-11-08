@@ -1,11 +1,16 @@
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { Modal, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Animated } from '../src/ui/AccessibleNative';
-import SpotlightWelcomeModal from '../src/ui/SpotlightWelcomeModal';
+import WelcomeScene, { SCENE_START_FALLBACK_MS } from '../src/ui/WelcomeScene';
 
 let mockSystemReduceMotion = false;
 jest.mock('../src/ui/useReduceMotion', () => () => mockSystemReduceMotion);
+let mockPerformance;
+jest.mock('../src/hooks/useAccessibility', () => {
+  const actual = jest.requireActual('../src/hooks/useAccessibility').default;
+  return () => ({ ...actual(), performance: mockPerformance });
+});
 jest.mock('react-native-svg', () => ({
   __esModule: true, default: 'Svg', Circle: 'Circle', Defs: 'Defs',
   RadialGradient: 'RadialGradient', Rect: 'Rect', Stop: 'Stop',
@@ -22,7 +27,7 @@ const style = testID => StyleSheet.flatten(node(testID).props.style);
 const finish = async animation => act(async () => animation.finish());
 const render = async (props, loadImages = true) => {
   await act(async () => {
-    tree = TestRenderer.create(<SpotlightWelcomeModal visible {...props} />);
+    tree = TestRenderer.create(<WelcomeScene {...props} />);
   });
   if (loadImages) {
     await presentScene();
@@ -33,10 +38,8 @@ const render = async (props, loadImages = true) => {
   }
 };
 const frame = async (width, height) => act(async () => node('welcome-screen').props.onLayout({ nativeEvent: { layout: { width, height } } }));
-const button = () => tree.root.findAll(n => n.props.accessibilityLabel === 'Continuar para o aplicativo' && n.props.onPress)[0];
 const presentScene = async () => {
   await frame(400, 800);
-  await act(async () => tree.root.findByType(Modal).props.onShow());
 };
 const loadLayer = async layer => act(async () => node(`welcome-main-bat-${layer}`).props.onLoad());
 const commitImages = async () => act(async () => { await jest.advanceTimersByTimeAsync(50); });
@@ -45,6 +48,7 @@ const value = animated => animated?.__getValue ? animated.__getValue() : animate
 beforeEach(() => {
   jest.useFakeTimers();
   mockSystemReduceMotion = false;
+  mockPerformance = undefined;
   timings = [];
   loops = [];
   jest.spyOn(Animated, 'timing').mockImplementation((value, config) => {
@@ -165,8 +169,7 @@ test('the complete bat waits for every decoded layer and enters with the HTML of
   await loadLayer('right');
   await commitImages();
   expect(timings).toHaveLength(0);
-  expect(value(style('welcome-screen').opacity)).toBe(0);
-  expect(button().props.disabled).toBe(true);
+  expect(value(style('welcome-moon').opacity)).toBe(0);
 
   await loadLayer('body');
   expect(timings).toHaveLength(0);
@@ -175,7 +178,7 @@ test('the complete bat waits for every decoded layer and enters with the HTML of
   expect(swoop).toBeDefined();
   const transform = () => style('welcome-main-flight').transform.map(item => value(Object.values(item)[0]));
   expect(transform()).toEqual([-90, -95, '-12deg', 0.58]);
-  expect(timings.filter(animation => animation.config.duration === 380 && animation.config.toValue === 1)).toHaveLength(1);
+  expect(timings.find(animation => animation.config.duration === 900).config).toMatchObject({ toValue: 1, delay: 100 });
   for (const layer of ['left', 'right', 'body']) {
     expect(node(`welcome-main-bat-${layer}`).props.fadeDuration).toBe(0);
   }
@@ -186,48 +189,84 @@ test('the complete bat waits for every decoded layer and enters with the HTML of
   expect(timings.filter(animation => animation.config.duration === 720)).toHaveLength(1);
 });
 
-test('closing stops every flight, retains the welcome through its fade, and handles Android back', async () => {
-  const onClose = jest.fn();
-  const onExited = jest.fn();
-  await render({ onClose, onExited });
-  expect(button().props.disabled).toBe(true);
-  await act(async () => jest.advanceTimersByTime(1000));
-  expect(button().props.disabled).toBe(false);
-  await act(async () => tree.root.findByType(Modal).props.onRequestClose());
-  expect(onClose).toHaveBeenCalledTimes(1);
-  await act(async () => tree.update(<SpotlightWelcomeModal visible={false} onClose={onClose} onExited={onExited} />));
-  expect(tree.toJSON()).not.toBeNull();
-  expect(loops.filter(loop => loop.start.mock.calls.length > 0).every(loop => loop.stop.mock.calls.length > 0)).toBe(true);
-  expect(button().props.disabled).toBe(true);
-  const exit = timings.at(-1);
-  expect(exit.config).toMatchObject({ toValue: 0, duration: 380 });
-  expect(onExited).not.toHaveBeenCalled();
-  await finish(exit);
-  expect(tree.toJSON()).toBeNull();
-  expect(onExited).toHaveBeenCalledTimes(1);
+test('a slow image never freezes the opening: the entrance starts after the fallback', async () => {
+  await render({}, false);
+  await presentScene();
+  await loadLayer('left');
+  await commitImages();
+  expect(timings).toHaveLength(0);
+  await act(async () => { await jest.advanceTimersByTimeAsync(SCENE_START_FALLBACK_MS); });
+  expect(timings.find(animation => animation.config.duration === 720)).toBeDefined();
 });
 
-test('reopening cancels the old exit and restarts the entry without leaving stale animations', async () => {
+test('the title appears after the bat lands and unmount stops every flight', async () => {
   await render();
-  await act(async () => tree.update(<SpotlightWelcomeModal visible={false} />));
-  const exit = timings.at(-1);
-  await act(async () => tree.update(<SpotlightWelcomeModal visible />));
-  expect(exit.stop).toHaveBeenCalled();
-  await finish(exit);
-  expect(tree.toJSON()).not.toBeNull();
-  expect(button().props.disabled).toBe(true);
-  expect(timings.at(-1).config).toMatchObject({ duration: 600, delay: 950 });
+  expect(timings.find(animation => animation.config.duration === 600).config).toMatchObject({ toValue: 1, delay: 950 });
+  await act(async () => tree.unmount());
+  tree = null;
+  expect(loops.filter(loop => loop.start.mock.calls.length > 0).every(loop => loop.stop.mock.calls.length > 0)).toBe(true);
 });
 
-test('system reduced motion hides background flights, neutralizes wings and closes immediately', async () => {
+test('system reduced motion shows the finished scene without flights or wing beats', async () => {
   mockSystemReduceMotion = true;
-  const onExited = jest.fn();
-  await render({ onExited });
+  await render();
   expect(tree.root.findAllByProps({ testID: 'welcome-background-bat-0' })).toHaveLength(0);
   expect(loops).toHaveLength(0);
   expect(style('welcome-main-bat-left').transform[0].rotate.__getValue()).toBe('0deg');
-  expect(button().props.disabled).toBe(false);
-  await act(async () => tree.update(<SpotlightWelcomeModal visible={false} onExited={onExited} />));
-  expect(tree.toJSON()).toBeNull();
-  expect(onExited).toHaveBeenCalledTimes(1);
+  expect(value(style('welcome-title').opacity)).toBe(1);
+  expect(value(style('welcome-moon').opacity)).toBe(1);
+});
+
+test('every looping motion is a single native timing, so a busy JS thread at startup cannot freeze or reset the wings', async () => {
+  await render();
+  const swoop = timings.find(animation => animation.config.duration === 720);
+  await finish(swoop); // starts the hover loop
+  expect(loops.length).toBeGreaterThanOrEqual(4);
+  for (const loop of loops) {
+    expect(loop.animation.config).toMatchObject({ toValue: 1, useNativeDriver: true });
+    expect(loop.animation.value).toBeDefined();
+  }
+  expect(loops.map(loop => loop.animation.config.duration)).toEqual(expect.arrayContaining([580, 480, 1160]));
+  // The wave is smooth and symmetric: open at the start, closed halfway, open again.
+  const wing = style('welcome-main-bat-left').transform[0].rotate;
+  const flapPhase = loops.find(loop => loop.animation.config.duration === 580).animation.value;
+  const at = async phase => { await act(async () => flapPhase.setValue(phase)); return wing.__getValue(); };
+  expect(await at(0)).toBe('-14deg');
+  expect(await at(0.5)).toBe('14deg');
+  expect(await at(1)).toBe('-14deg');
+});
+
+test('re-rendering during startup keeps the same animation nodes, so the wings never snap back', async () => {
+  await render();
+  const nodes = () => ({
+    left: style('welcome-main-bat-left').transform[0].rotate,
+    right: style('welcome-main-bat-right').transform[0].rotate,
+    flight: style('welcome-main-flight').transform,
+    mini: style('welcome-mini-0-left').transform[0].rotate,
+  });
+  const before = nodes();
+  const starts = timings.length;
+  for (let i = 0; i < 3; i++) await act(async () => tree.update(<WelcomeScene />));
+  await frame(400, 800);
+  const after = nodes();
+  expect(after.left).toBe(before.left);
+  expect(after.right).toBe(before.right);
+  expect(after.mini).toBe(before.mini);
+  after.flight.forEach((item, index) => expect(Object.values(item)[0]).toBe(Object.values(before.flight[index])[0]));
+  expect(timings.length).toBe(starts); // nada reinicia
+});
+
+test('while the device performance is being measured nothing animates; then the full entrance plays', async () => {
+  mockPerformance = { ready: false, tier: 'medium' };
+  mockSystemReduceMotion = true; // precaução automática durante a medição
+  await render();
+  expect(timings).toHaveLength(0);
+  expect(loops).toHaveLength(0);
+  expect(value(style('welcome-title').opacity)).toBe(0);
+  mockPerformance = { ready: true, tier: 'high', source: 'native' };
+  mockSystemReduceMotion = false;
+  await act(async () => tree.update(<WelcomeScene />));
+  const swoop = timings.find(animation => animation.config.duration === 720);
+  expect(swoop).toBeDefined();
+  expect(style('welcome-main-flight').transform.map(item => value(Object.values(item)[0]))).toEqual([-90, -95, '-12deg', 0.58]);
 });

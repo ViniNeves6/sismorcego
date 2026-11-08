@@ -84,6 +84,10 @@ test('evaluation menu keeps account, settings, guide and information while omitt
   expect(texts()).toContain('Minha conta'); expect(texts()).toContain('Configurações');
   expect(texts()).not.toContain('Sair'); expect(texts()).not.toContain('Editar perfil, foto e senha de acesso');
 });
+test('evaluation menu offers sign out when the shell allows switching profiles', async () => {
+  await render({ ...defaults(), activeSubscreen: null, managedAccount: true, canSignOut: true });
+  expect(texts()).toContain('Sair'); expect(texts()).not.toContain('Editar perfil, foto e senha de acesso');
+});
 
 const saveAccountButton = () => tree.root.findAll(node => node.props.accessibilityRole === 'button' &&
   typeof node.props.onPress === 'function' && node.findAllByType(RNText).some(text => text.props.children === 'Salvar alterações'))[0];

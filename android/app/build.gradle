@@ -73,16 +73,8 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-// Temporary shared application account, explicitly accepted for evaluation.
-// Keep the source properties outside Git. No administrative key is read here.
-def evaluationCredentialsPath = project.findProperty('sismorcegoEvaluationCredentialsFile') ?: System.getenv('SISMORCEGO_EVALUATION_CREDENTIALS_FILE')
-def evaluationCredentialsFile = evaluationCredentialsPath ? file(evaluationCredentialsPath) : new File(System.getProperty('user.home'), '.sismorcego/evaluation-credentials.properties')
-def evaluationCredentials = new Properties()
-if (evaluationCredentialsFile.isFile()) {
-    evaluationCredentialsFile.withInputStream { evaluationCredentials.load(it) }
-}
-def evaluationEmail = evaluationCredentials.getProperty('email', '')
-def evaluationPassword = evaluationCredentials.getProperty('password', '')
+// Nenhuma credencial é compilada no APK: o ACS entra com conta anônima por
+// aparelho e o coordenador digita o e-mail e a senha na tela de entrada.
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -100,8 +92,6 @@ android {
         buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "false"
         // Exclusivo desta branch de avaliação; nunca habilita acesso sem Auth.
         buildConfigField "boolean", "SISMORCEGO_COORDINATOR_EVALUATION", "true"
-        buildConfigField "String", "SISMORCEGO_EVALUATION_EMAIL", '""'
-        buildConfigField "String", "SISMORCEGO_EVALUATION_PASSWORD", '""'
     }
     signingConfigs {
         debug {
@@ -131,8 +121,6 @@ android {
             applicationIdSuffix ".homologacao"
             matchingFallbacks = ["debug"]
             buildConfigField "boolean", "SISMORCEGO_REAL_FIREBASE", "true"
-            buildConfigField "String", "SISMORCEGO_EVALUATION_EMAIL", groovy.json.JsonOutput.toJson(evaluationEmail)
-            buildConfigField "String", "SISMORCEGO_EVALUATION_PASSWORD", groovy.json.JsonOutput.toJson(evaluationPassword)
             resValue "string", "app_name", "Sismorcego"
         }
         emulator {
@@ -140,8 +128,6 @@ android {
             applicationIdSuffix ".emulador"
             matchingFallbacks = ["debug"]
             buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "true"
-            buildConfigField "String", "SISMORCEGO_EVALUATION_EMAIL", '"evaluation@example.invalid"'
-            buildConfigField "String", "SISMORCEGO_EVALUATION_PASSWORD", '"local-only-evaluation-2026"'
             resValue "string", "app_name", "Sismorcego (TESTE LOCAL)"
         }
         release {
@@ -152,16 +138,6 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             
-        }
-    }
-}
-
-tasks.configureEach { task ->
-    if (task.name == 'preHomologationBuild') {
-        task.doFirst {
-            if (!evaluationEmail || !evaluationPassword) {
-                throw new GradleException('Configure a credencial da conta de avaliação no arquivo externo evaluation-credentials.properties antes de compilar a homologação.')
-            }
         }
     }
 }

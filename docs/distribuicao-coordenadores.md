@@ -10,7 +10,7 @@ Na pasta do projeto:
 npm run android:apk
 ```
 
-O comando padrão **sempre compila a variante de homologação dos coordenadores**, com Firebase real, login automático na conta compartilhada de avaliação e as regras de prazo já existentes no projeto Spark. Ele não compila o APK de emuladores nem o debug convencional.
+O comando padrão **sempre compila a variante de homologação dos coordenadores**, com Firebase real, tela de entrada (ACS direto ou coordenador com e-mail e senha) e as regras de prazo já existentes no projeto Spark. Ele não compila o APK de emuladores nem o debug convencional.
 
 A saída para enviar aos coordenadores será copiada automaticamente para:
 
@@ -20,7 +20,7 @@ android/app/build/outputs/apk/distribuicao/Sismorcego-Coordenadores.apk
 
 O APK original também permanece em `android/app/build/outputs/apk/homologation/app-homologation.apk`. A compilação exibe o SHA-256 do arquivo de distribuição.
 
-`npm run android:apk:homologacao` é um nome alternativo para o mesmo build. O build **falha se a credencial externa da conta de avaliação estiver ausente**, em vez de produzir um APK inválido. A credencial só é necessária no computador que compila, não nos telefones dos coordenadores. Nunca enviar o arquivo de credenciais aos coordenadores.
+`npm run android:apk:homologacao` é um nome alternativo para o mesmo build. Nenhuma credencial é compilada no APK: o build não depende mais do arquivo `evaluation-credentials.properties`. Passe o e-mail e a senha da conta de coordenador somente aos coordenadores, por um canal privado.
 
 ## Somente para desenvolvimento
 
@@ -31,8 +31,8 @@ O APK original também permanece em `android/app/build/outputs/apk/homologation/
 
 ## Funcionamento esperado para quem recebe
 
-1. Instalar e abrir o APK. Nenhuma tela de login, QR, código ou ativação por aparelho.
-2. Com acesso à internet, o aplicativo autentica automaticamente a conta compartilhada e valida a avaliação pelo Firebase real.
+1. Instalar e abrir o APK. Depois da splash, escolher **Sou ACS** (entra direto, sem senha) ou **Sou coordenador** (e-mail e senha da conta de coordenação). Não há QR, código nem ativação por aparelho.
+2. Com acesso à internet, o aplicativo autentica o perfil escolhido e valida a avaliação pelo Firebase real.
 3. A avaliação tem configuração global `configuracoes/avaliacaoCoordenadores` no Firestore. `enabled: false` suspende e `expiresAt` prorroga sem reinstalação.
 4. Falha de conexão com Firebase/expiração/suspensão impedem acesso ao conteúdo protegido até a próxima verificação. A tela de bloqueio não indica, por si só, falha do Wi-Fi.
 

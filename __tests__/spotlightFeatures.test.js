@@ -11,9 +11,6 @@ import SpotlightGuideModal, {
   getSpotlightSteps,
   SPOTLIGHT_STORAGE_KEY,
 } from '../src/ui/SpotlightGuideModal';
-import SpotlightWelcomeModal, {
-  SPOTLIGHT_WELCOME_KEY,
-} from '../src/ui/SpotlightWelcomeModal';
 
 jest.mock('react-native-linear-gradient', () => 'LinearGradient');
 jest.mock('react-native-svg', () => ({
@@ -29,7 +26,7 @@ jest.mock('react-native-svg', () => ({
   Stop: 'Stop',
 }));
 
-describe('Spotlight interactive guide & welcome modal specifications', () => {
+describe('Spotlight interactive guide specifications', () => {
   afterEach(async () => {
     await AsyncStorage.clear();
   });
@@ -117,7 +114,6 @@ describe('Spotlight interactive guide & welcome modal specifications', () => {
 
   test('storage keys match expected values', () => {
     expect(SPOTLIGHT_STORAGE_KEY).toBe('sismorcego-spotlight-v1-seen');
-    expect(SPOTLIGHT_WELCOME_KEY).toBe('sismorcego-spotlight-welcome-v1-shown');
   });
 
   test('renders SpotlightGuideModal cleanly and handles completion', async () => {
@@ -157,25 +153,6 @@ describe('Spotlight interactive guide & welcome modal specifications', () => {
     await act(async () => tree.unmount());
   });
 
-  test('renders SpotlightWelcomeModal with 3 bat layers and continue button', async () => {
-    const onClose = jest.fn();
-    let tree;
-
-    await act(async () => {
-      tree = ReactTestRenderer.create(
-        <SpotlightWelcomeModal
-          visible={true}
-          reduceMotion={true}
-          onClose={onClose}
-        />
-      );
-    });
-
-    expect(tree).toBeDefined();
-    await act(async () => {
-      tree.unmount();
-    });
-  });
 });
 
 describe('spotlight alignment against real native measurements', () => {

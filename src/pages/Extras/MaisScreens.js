@@ -236,6 +236,7 @@ export default function MaisScreens({
   setActiveSubscreen,
   accountProfile: sourceAccountProfile,
   managedAccount = false,
+  canSignOut = !managedAccount,
   onSaveAccountProfile,
   onSaveAvatarPhoto,
   doubtsView,
@@ -1454,7 +1455,7 @@ export default function MaisScreens({
         </View>
 
         {/* Danger Sair Group */}
-        {!managedAccount && <View style={styles.menuGroup}>
+        {canSignOut && <View style={styles.menuGroup}>
           <Pressable
             onPress={onSignOut}
             style={({ pressed }) => [

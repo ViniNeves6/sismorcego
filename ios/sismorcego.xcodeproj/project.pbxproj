@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B121F063FDAF2B1DBE2B873A /* PlusJakartaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4CB66F23EB6327E78397063E /* PlusJakartaSans-Regular.ttf */; };
+		0210E67555EF2ABDC36D4714 /* PlusJakartaSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BD26D2A97158A643EE7A626B /* PlusJakartaSans-Medium.ttf */; };
+		DD35B008A6FBE26F8970565F /* PlusJakartaSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5CE69B14DB5F9883804A536C /* PlusJakartaSans-SemiBold.ttf */; };
+		BEBECB5D23E2C6ED8780691B /* PlusJakartaSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 40E882DBA079F764393A7587 /* PlusJakartaSans-Bold.ttf */; };
+		64C44464E859959EB59A0934 /* PlusJakartaSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BBCCCCB613FB9347CA9677A4 /* PlusJakartaSans-ExtraBold.ttf */; };
 		0C80B921A6F3F58F76C31292 /* libPods-sismorcego.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-sismorcego.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
@@ -14,6 +19,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		4CB66F23EB6327E78397063E /* PlusJakartaSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = PlusJakartaSans-Regular.ttf; path = ../android/app/src/main/assets/fonts/PlusJakartaSans-Regular.ttf; sourceTree = "<group>"; };
+		BD26D2A97158A643EE7A626B /* PlusJakartaSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = PlusJakartaSans-Medium.ttf; path = ../android/app/src/main/assets/fonts/PlusJakartaSans-Medium.ttf; sourceTree = "<group>"; };
+		5CE69B14DB5F9883804A536C /* PlusJakartaSans-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = PlusJakartaSans-SemiBold.ttf; path = ../android/app/src/main/assets/fonts/PlusJakartaSans-SemiBold.ttf; sourceTree = "<group>"; };
+		40E882DBA079F764393A7587 /* PlusJakartaSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = PlusJakartaSans-Bold.ttf; path = ../android/app/src/main/assets/fonts/PlusJakartaSans-Bold.ttf; sourceTree = "<group>"; };
+		BBCCCCB613FB9347CA9677A4 /* PlusJakartaSans-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = PlusJakartaSans-ExtraBold.ttf; path = ../android/app/src/main/assets/fonts/PlusJakartaSans-ExtraBold.ttf; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* sismorcego.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = sismorcego.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = sismorcego/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = sismorcego/Info.plist; sourceTree = "<group>"; };
@@ -46,6 +56,11 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				4CB66F23EB6327E78397063E /* PlusJakartaSans-Regular.ttf */,
+				BD26D2A97158A643EE7A626B /* PlusJakartaSans-Medium.ttf */,
+				5CE69B14DB5F9883804A536C /* PlusJakartaSans-SemiBold.ttf */,
+				40E882DBA079F764393A7587 /* PlusJakartaSans-Bold.ttf */,
+				BBCCCCB613FB9347CA9677A4 /* PlusJakartaSans-ExtraBold.ttf */,
 			);
 			name = sismorcego;
 			sourceTree = "<group>";
@@ -159,6 +174,11 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				B121F063FDAF2B1DBE2B873A /* PlusJakartaSans-Regular.ttf in Resources */,
+				0210E67555EF2ABDC36D4714 /* PlusJakartaSans-Medium.ttf in Resources */,
+				DD35B008A6FBE26F8970565F /* PlusJakartaSans-SemiBold.ttf in Resources */,
+				BEBECB5D23E2C6ED8780691B /* PlusJakartaSans-Bold.ttf in Resources */,
+				64C44464E859959EB59A0934 /* PlusJakartaSans-ExtraBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,7 +291,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sismorcego.homologacao;
 				PRODUCT_NAME = sismorcego;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -298,7 +318,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sismorcego.homologacao;
 				PRODUCT_NAME = sismorcego;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
