@@ -123,6 +123,7 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            resValue "string", "app_name", "Sismorcego (DEV)"
         }
 
         homologation {
@@ -141,7 +142,7 @@ android {
             buildConfigField "boolean", "SISMORCEGO_USE_EMULATORS", "true"
             buildConfigField "String", "SISMORCEGO_EVALUATION_EMAIL", '"evaluation@example.invalid"'
             buildConfigField "String", "SISMORCEGO_EVALUATION_PASSWORD", '"local-only-evaluation-2026"'
-            resValue "string", "app_name", "Sismorcego"
+            resValue "string", "app_name", "Sismorcego (TESTE LOCAL)"
         }
         release {
             // Caution! In production, you need to generate your own keystore file.
