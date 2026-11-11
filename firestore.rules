@@ -151,6 +151,21 @@ service cloud.firestore {
         allow read: if (owner(uid) || coordinator()) && exists(/databases/$(database)/documents/registros/$(uid)/itens/$(id));
         allow create: if owner(uid) && validAudit(request.resource.data);
       }
+      // Foto da ocorrência num documento à parte (a lista não baixa as fotos).
+      // Só o autor grava; autor e coordenação leem. ~900 mil caracteres base64.
+      match /foto/{photoId} {
+        function validPhoto(d) {
+          return d.keys().hasAll(['mime','base64','size','updatedAt'])
+            && d.keys().hasOnly(['mime','base64','size','updatedAt'])
+            && d.mime in ['image/jpeg','image/png','image/webp']
+            && d.base64 is string && d.base64.size() > 0 && d.base64.size() <= 900000
+            && d.size is int && d.size >= 0 && d.updatedAt == request.time;
+        }
+        allow read: if photoId == 'principal' && (owner(uid) || coordinator());
+        allow create, update: if photoId == 'principal' && owner(uid) && validPhoto(request.resource.data)
+          && exists(/databases/$(database)/documents/registros/$(uid)/itens/$(id));
+        allow delete: if photoId == 'principal' && owner(uid);
+      }
     }
     // Collection-group utilizada pelo histórico/painel/central administrativa.
     match /{path=**}/itens/{id} { allow read: if coordinator(); }

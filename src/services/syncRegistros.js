@@ -6,6 +6,7 @@ import { writeRecordTransaction } from './recordSyncProtocol';
 import { LOCAL_TEST_MODE } from './debugTestSession';
 import { recordIdentity } from './recordLifecycle';
 import { withRecordLock } from './recordDraftIdentity';
+import { syncRecordPhoto } from './recordPhotoCloud';
 
 let syncing = false;
 let syncRequested = false;
@@ -36,8 +37,11 @@ export async function syncPendingRegistros({ notify } = {}) {
           { status: 'syncing', serverWriteAttempted: true, lastError: null }, { uid }));
         if (!claimed) continue;
         const receipt = await writeSyncedRecord(registro, uid);
+        // A foto vai num documento à parte, depois da ficha. Se falhar, o registro
+        // fica para nova tentativa (a ficha já gravada não é escrita de novo).
+        const photoCloudFingerprint = await syncRecordPhoto(registro, uid, db);
         // Cópia criptografada dos enviados para consulta offline.
-        const updated = await updateQueueItemIfRevision(registro.recordId, revision, { ...receipt, baseServerRevision: receipt.serverRevision, status: 'synced', hasServerCopy: true, syncConflict: null, auditEvents: [], lastError: null, retryCount: 0 }, { uid });
+        const updated = await updateQueueItemIfRevision(registro.recordId, revision, { ...receipt, photoCloudFingerprint, baseServerRevision: receipt.serverRevision, status: 'synced', hasServerCopy: true, syncConflict: null, auditEvents: [], lastError: null, retryCount: 0 }, { uid });
         if (!updated) {
           // Uma edição durante o envio ainda parte da revisão que acabamos de
           // confirmar. Avança apenas a base, sem apagar campos/eventos novos.

@@ -1,6 +1,6 @@
 export const VICTIM_DESCRIPTIONS = {
   humano: {
-    title: 'Vítima: Humano',
+    title: 'Espécie mordida: Humano',
     prefix: 'Selecione esta opção quando uma ',
     bold: 'pessoa',
     suffix:
@@ -10,7 +10,7 @@ export const VICTIM_DESCRIPTIONS = {
       'Nome ou apelido do paciente, idade, local anatômico da mordedura e se já buscou atendimento médico.',
   },
   canino: {
-    title: 'Vítima: Canino / Felino',
+    title: 'Espécie mordida: Canino / Felino',
     prefix: 'Selecione para ataques de morcegos em ',
     bold: 'cães ou gatos domésticos',
     suffix: ' da residência ou comunidade.',
@@ -19,7 +19,7 @@ export const VICTIM_DESCRIPTIONS = {
       'Animais domésticos atuam como ponte de transmissão entre o ciclo silvestre e os moradores. Informe se o animal é vacinado contra a raiva.',
   },
   aves: {
-    title: 'Vítima: Aves',
+    title: 'Espécie mordida: Aves',
     prefix: 'Selecione quando houver espoliação sanguínea em ',
     bold: 'aves de criação ou subsistência',
     suffix: ' (galinhas, patos, perus, etc.).',
@@ -28,7 +28,7 @@ export const VICTIM_DESCRIPTIONS = {
       'Embora aves não transmitam a raiva para humanos, ataques frequentes em galinheiros indicam alta circulação de morcegos hematófagos próximos aos domicílios.',
   },
   producao: {
-    title: 'Vítima: Animal de Produção',
+    title: 'Espécie mordida: Animal de Produção',
     prefix: 'Selecione para agressões em ',
     bold: 'herbívoros e animais de criação econômica',
     suffix: ': bovinos, bubalinos, equinos, suínos, caprinos ou ovinos.',
@@ -47,9 +47,9 @@ export const VICTIM_META = {
 
 export const VICTIM_FORMS = {
   humano: {
-    title: 'Vítima humana',
-    missingMsg: 'Preencha os dados da vítima humana',
-    savedMsg: 'Dados da vítima concluídos!',
+    title: 'Humano',
+    missingMsg: 'Preencha os dados da pessoa mordida',
+    savedMsg: 'Dados da espécie mordida concluídos!',
     groups: [
       {
         title: 'Pessoa agredida',

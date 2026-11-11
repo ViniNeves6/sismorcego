@@ -11,6 +11,7 @@ import { toRecordView } from '../src/services/registroAdapter';
 import { completeRecordDraft, getRecordDraftIdentity } from '../src/services/recordDraftIdentity';
 import { panelKpis, panelChart, filterPanelRecords } from '../src/services/adminPanelData';
 import { buildAlertContract } from '../src/services/alertContract';
+import { photoFingerprint, withCloudPhotoView, MAX_PHOTO_BASE64 } from '../src/services/recordPhotoCloud';
 
 let mockRows = [];
 let mockCloud = new Map();
@@ -297,3 +298,90 @@ test('local photographs remain available after cloud refresh without uploading b
   expect(merged.city).toBe('Servidor atualizado');expect(merged.photo.uri).toBe('file:///local.jpg');
   expect(toRecordView(mergeByRecordId([{...cloud,photoBase64:'LEGACY'}],[{...local,photoHidden:true}])[0]).photo).toBeNull();
 });
+<<<<<<< Updated upstream
+=======
+
+
+test('shared evaluation UID retains different occurrence authors and masks only the account presentation', async () => {
+  mockEvaluation = true; auth.currentUser = { uid: 'shared', displayName: 'Sismorcego Teste', email: 'private@example.invalid' };
+  expect(await loadReporterName()).toBe('');
+  expect(await loadAccountProfile()).toMatchObject({ username: 'Sismorcego', email: '************' });
+  await saveReporterNameToStorage('Coordenadora Ana');
+  const first = await addNewRecordToStorage({ id: 'shared-ana', victimKey: 'aves', city: 'Belém', reporter: await loadReporterName(), details: {} });
+  await saveReporterNameToStorage('Coordenador Bruno');
+  const second = await addNewRecordToStorage({ id: 'shared-bruno', victimKey: 'aves', city: 'Belém', reporter: await loadReporterName(), details: {} });
+  expect(first.reporter).toBe('Coordenadora Ana'); expect(second.reporter).toBe('Coordenador Bruno');
+  expect(mockRows.map(row => row.uid)).toEqual(['shared','shared']);
+  await syncPendingRegistros();
+  expect(mockCloud.get('registros/shared/itens/shared-ana').nomeAcs).toBe('Coordenadora Ana');
+  expect(mockCloud.get('registros/shared/itens/shared-bruno').nomeAcs).toBe('Coordenador Bruno');
+  expect(toRecordView(mockCloud.get('registros/shared/itens/shared-ana')).reporter).toBe('Coordenadora Ana');
+  expect(auth.currentUser.displayName).toBe('Sismorcego Teste');
+});
+
+describe('foto da ocorrência na nuvem (documento separado)', () => {
+  const photoPath = id => `registros/${auth.currentUser.uid}/itens/${id}/foto/principal`;
+  const photoWrites = id => setDoc.mock.calls.filter(([ref]) => ref.path === photoPath(id));
+  const withPhoto = (id, base64 = 'QUJD', extra = {}) => ({ ...pending(id), photoBase64: base64, photoMime: 'image/jpeg', ...extra });
+
+  test('the photo goes to foto/principal after the record, never inside the record payload', async () => {
+    mockRows = [withPhoto('p1')];
+    expect((await syncPendingRegistros()).synced).toBe(1);
+    const record = setDoc.mock.calls.find(([ref]) => ref.path === `registros/${auth.currentUser.uid}/itens/p1`)[1];
+    expect(record).not.toHaveProperty('photoBase64');
+    expect(photoWrites('p1')).toHaveLength(1);
+    expect(photoWrites('p1')[0][1]).toEqual({ mime: 'image/jpeg', base64: 'QUJD', size: 3, updatedAt: 'server-time' });
+    expect(mockRows[0].photoCloudFingerprint).toBe(photoFingerprint('QUJD'));
+  });
+
+  test('an edit that keeps the same photo does not upload it again; a new photo does', async () => {
+    mockRows = [withPhoto('p2')];
+    await syncPendingRegistros();
+    Object.assign(mockRows[0], { status: 'pending', localRevision: 'v2', baseServerRevision: 1, municipio: 'Ananindeua' });
+    await syncPendingRegistros();
+    expect(photoWrites('p2')).toHaveLength(1);
+    Object.assign(mockRows[0], { status: 'pending', localRevision: 'v3', baseServerRevision: 2, photoBase64: 'WFla' });
+    await syncPendingRegistros();
+    expect(photoWrites('p2')).toHaveLength(2);
+    expect(photoWrites('p2')[1][1].base64).toBe('WFla');
+  });
+
+  test('removing an uploaded photo deletes the cloud copy', async () => {
+    mockRows = [withPhoto('p3')];
+    await syncPendingRegistros();
+    Object.assign(mockRows[0], { status: 'pending', localRevision: 'v2', baseServerRevision: 1, photoBase64: null, photoHidden: true });
+    await syncPendingRegistros();
+    expect(deleteDoc).toHaveBeenCalledWith(expect.objectContaining({ path: photoPath('p3') }));
+  });
+
+  test('a failed photo upload keeps the record retryable, and the retry sends only the photo', async () => {
+    mockRows = [withPhoto('p4')];
+    setDoc.mockImplementation(async ref => { if (ref.path.endsWith('/foto/principal')) throw new Error('rede caiu'); });
+    expect((await syncPendingRegistros()).failed).toBe(1);
+    expect(mockRows[0]).toMatchObject({ status: 'failed' });
+    setDoc.mockReset().mockResolvedValue();
+    expect((await syncPendingRegistros()).synced).toBe(1);
+    expect(setDoc.mock.calls.filter(([ref]) => ref.path === `registros/${auth.currentUser.uid}/itens/p4`)).toHaveLength(0);
+    expect(photoWrites('p4')).toHaveLength(1);
+  });
+
+  test('an oversized photo is refused with a clear message and stays local', async () => {
+    mockRows = [withPhoto('p5', 'A'.repeat(MAX_PHOTO_BASE64 + 1))];
+    expect((await syncPendingRegistros()).failed).toBe(1);
+    expect(mockRows[0].lastError).toMatch(/grande demais/);
+  });
+
+  test('the coordinator loads the photo of a cloud record on demand; own local photos are not refetched', async () => {
+    const cloud = toRecordView({ recordId: 'c1', uid: 'acs-2', _origin: 'cloud', tipoVitima: 'aves', detalhes: {} });
+    expect(cloud.photo).toBeNull();
+    mockCloud.set('registros/acs-2/itens/c1/foto/principal', { base64: 'QUJD', mime: 'image/png' });
+    const loaded = await withCloudPhotoView(cloud);
+    expect(loaded.photo.dataUrl).toBe('data:image/png;base64,QUJD');
+    expect(loaded._raw).toMatchObject({ photoBase64: 'QUJD', photoMime: 'image/png', photoCloudFingerprint: photoFingerprint('QUJD') });
+    const local = toRecordView({ ...withPhoto('own'), _origin: 'local' });
+    expect(await withCloudPhotoView(local)).toBe(local);
+    const missing = toRecordView({ recordId: 'c2', uid: 'acs-2', _origin: 'cloud', tipoVitima: 'aves', detalhes: {} });
+    expect(await withCloudPhotoView(missing)).toBe(missing);
+  });
+});
+>>>>>>> Stashed changes

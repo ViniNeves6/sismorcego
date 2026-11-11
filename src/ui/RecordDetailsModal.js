@@ -564,7 +564,7 @@ export default function RecordDetailsModal({
                       record.cancellation.clientAt ? new Date(record.cancellation.clientAt).toLocaleString('pt-BR') : null].filter(Boolean).join(' — ')}</Text>
                   </View>}
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Tipo de vítima</Text>
+                    <Text style={styles.detailLabel}>Espécie mordida</Text>
                     <Text style={styles.detailValue}>
                       {(VICTIM_META[record.victimKey] || {}).typeLabel ||
                         record.title}
@@ -630,7 +630,7 @@ export default function RecordDetailsModal({
                 {filledDetailItems.length > 0 ? (
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>
-                      DADOS DA VÍTIMA
+                      DADOS DA ESPÉCIE MORDIDA
                     </Text>
                     <View style={styles.detailGrid}>
                       {filledDetailItems.map((item, idx) => (
@@ -688,7 +688,7 @@ export default function RecordDetailsModal({
                 {/* 1. Qual o tipo de vítima? */}
                 <View style={styles.editGroup}>
                   <Text style={styles.editGroupTitle}>
-                    1. QUAL O TIPO DE VÍTIMA?
+                    1. QUAL A ESPÉCIE MORDIDA?
                   </Text>
                   <View style={styles.typeGrid}>
                     {VICTIM_OPTIONS.map((opt) => {
@@ -871,7 +871,7 @@ export default function RecordDetailsModal({
                         ]}
                       >
                         <Text style={styles.mediaBtnText}>
-                          Capturar coordenadas GPS
+                          Obter a localização pelo GPS
                         </Text>
                       </Pressable>
                       <Pressable
@@ -899,7 +899,7 @@ export default function RecordDetailsModal({
 
                   <View style={[styles.fieldBlock, { marginBottom: 0 }]}>
                     <Text style={styles.fieldLabel}>Fotografia</Text>
-                    <Text style={styles.detailLabel}>Novas fotos ficam somente neste celular nesta versão.</Text>
+                    <Text style={styles.detailLabel}>A foto é enviada junto com o registro quando houver internet.</Text>
                     {draft?.photo?.dataUrl ? (
                       <View style={styles.photoPreviewBox}>
                         <Image

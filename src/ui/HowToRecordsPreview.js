@@ -13,7 +13,7 @@ export default function HowToRecordsPreview({ isCoordenador = false }) {
   const selectedInk = highContrast ? '#000000' : '#FFFFFF';
   const pillsY = isCoordenador ? 140 : 58;
   const label = isCoordenador
-    ? 'Busca de registros, filtros Município: Todos e Vítima: Todas, e opções Todos, Pendentes e Enviados'
+    ? 'Busca de registros, filtros Município: Todos e Espécie: Todas, e opções Todos, Pendentes e Enviados'
     : 'Busca de registros e opções Todos, Pendentes e Enviados';
   return <Svg testID="howto-records-preview" width="100%" height="100%"
     viewBox={`0 0 360 ${isCoordenador ? 174 : 92}`} preserveAspectRatio="xMidYMid meet"
@@ -22,9 +22,9 @@ export default function HowToRecordsPreview({ isCoordenador = false }) {
     <Circle cx={24} cy={21} r={6} stroke={purple} strokeWidth={1.7} fill="none" />
     <Path d="M28.5 25.5 L33 30" stroke={purple} strokeWidth={1.7} strokeLinecap="round" />
     <Text x={43} y={26} fill={muted} fontFamily="PlusJakartaSans-Medium" fontSize={11}>
-      Buscar por município, vítima ou comunidade...
+      Buscar por município, espécie ou comunidade...
     </Text>
-    {isCoordenador && ['Município: Todos', 'Vítima: Todas'].map((text, index) => {
+    {isCoordenador && ['Município: Todos', 'Espécie: Todas'].map((text, index) => {
       const y = 50 + index * 44;
       return <React.Fragment key={text}>
         <Rect x={5} y={y} width={350} height={35} rx={11} fill={surface} stroke={purple} strokeWidth={1} />

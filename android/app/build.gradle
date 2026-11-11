@@ -7,7 +7,9 @@ apply plugin: "com.facebook.react"
  * By default you don't need to apply any configuration, just uncomment the lines you need.
  */
 react {
-    debuggableVariants = ["debug", "homologation", "emulator"]
+    // Homologação é montada como release: o plugin empacota o JS já compilado
+    // pelo Hermes (abre mais rápido) e usa as bibliotecas nativas otimizadas.
+    debuggableVariants = ["debug", "emulator"]
     /* Folders */
     //   The root of your project, i.e. where "package.json" lives. Default is '../..'
     // root = file("../../")
@@ -111,9 +113,13 @@ android {
         }
 
         homologation {
-            initWith debug
+            // Base release (bibliotecas nativas otimizadas e sem depuração): o APK cai
+            // de ~150 MB para uma fração. Assinado com a chave de debug, como antes.
+            initWith release
+            signingConfig signingConfigs.debug
+            debuggable false
             applicationIdSuffix ".homologacao"
-            matchingFallbacks = ["debug"]
+            matchingFallbacks = ["release"]
             buildConfigField "boolean", "SISMORCEGO_REAL_FIREBASE", "true"
             resValue "string", "app_name", "Sismorcego"
         }

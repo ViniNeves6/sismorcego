@@ -25,7 +25,7 @@ export async function captureGpsLocation() {
     const fine = permissions[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
     const coarse = permissions[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED;
     if (!fine && !coarse) {
-      throw new Error('Permissão de localização negada. Autorize o acesso para capturar o GPS.');
+      throw new Error('Permissão de localização negada. Autorize o acesso para obter a localização pelo GPS.');
     }
     highAccuracy = fine;
   } else if (Platform.OS === 'ios') {
@@ -39,10 +39,10 @@ export async function captureGpsLocation() {
   let result;
   try { result = await position(highAccuracy); } catch (error) {
     if (error?.code === 1) throw new Error('Permissão de localização negada.');
-    if (!highAccuracy) throw new Error('Não foi possível obter o GPS. Verifique a localização do aparelho e tente novamente.');
+    if (!highAccuracy) throw new Error('Não foi possível obter a localização pelo GPS. Verifique a localização do aparelho e tente novamente.');
     highAccuracy = false;
     try { result = await position(false); } catch (cause) {
-      throw new Error(cause?.code === 1 ? 'Permissão de localização negada.' : 'Não foi possível obter o GPS. Verifique a localização do aparelho e tente novamente em uma área aberta.');
+      throw new Error(cause?.code === 1 ? 'Permissão de localização negada.' : 'Não foi possível obter a localização pelo GPS. Verifique a localização do aparelho e tente novamente em uma área aberta.');
     }
   }
   const { latitude, longitude, accuracy } = result.coords || {};

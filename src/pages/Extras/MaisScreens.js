@@ -25,19 +25,21 @@ import {
   LockIcon,
   LogOutIcon,
   PlusIcon,
+  SearchIcon,
   SettingsGearIcon,
   UsersIcon,
 } from '../../ui/SismorcegoIcons';
 import { getReporterInitials } from '../../services/sismorcegoData';
 import { pickRegistroPhoto } from '../../services/deviceCapture';
 import AnimatedOverlay from '../../ui/AnimatedOverlay';
+import ZoomableImageModal from '../../ui/ZoomableImageModal';
 import { hasProfileChanges, normalizedProfile } from '../../services/editChanges';
 import { FIREBASE_PUSH_BACKEND_READY } from '../../services/firebaseIntegration';
 
 const IMG_DIVERSIDADE = require('../../assets/images/InfoDiversidadeMorcegos.jpg');
 const IMG_RAIVA = require('../../assets/images/InfoDoencaRaiva.jpg');
-const IMG_DRA = require('../../assets/images/DRA.png');
-const IMG_PEDRO = require('../../assets/images/pedro.png');
+const IMG_DRA = require('../../assets/images/DRA.jpg');
+const IMG_PEDRO = require('../../assets/images/pedro.jpg');
 const IMG_ANDRE = require('../../assets/images/andre.png');
 const IMG_PAULO = require('../../assets/images/paulo.png');
 const IMG_SERUFFO = require('../../assets/images/seruffo.png');
@@ -266,6 +268,10 @@ export default function MaisScreens({
   const guideScrollProps = useSpotlightScroll(guideScroll);
   const { width: windowWidth } = useWindowDimensions();
   // Account state
+  // Imagem informativa aberta em tela cheia com zoom ({ source, title, aspectRatio }).
+  const [zoomImage, setZoomImage] = useState(null);
+  const [zoomVisible, setZoomVisible] = useState(false);
+  const openZoom = image => { setZoomImage(image); setZoomVisible(true); };
   const [username, setUsername] = useState(
     accountProfile?.username || '',
   );
@@ -867,7 +873,12 @@ export default function MaisScreens({
         >
           <View style={styles.infoPosterCard}>
             <Text style={styles.infoPosterTitle}>Diversidade de morcegos</Text>
-            <View style={styles.infoBannerFrame}>
+            <Pressable
+              accessibilityRole="imagebutton"
+              accessibilityLabel="Ampliar imagem: Diversidade de morcegos"
+              onPress={() => openZoom({ source: IMG_DIVERSIDADE, title: 'Diversidade de morcegos', aspectRatio: 1600 / 1131 })}
+              style={({ pressed }) => [styles.infoBannerFrame, pressed && styles.infoBannerPressed]}
+            >
               <Image
                 source={IMG_DIVERSIDADE}
                 style={{
@@ -877,12 +888,21 @@ export default function MaisScreens({
                 resizeMode="cover"
                 resizeMethod="resize"
               />
-            </View>
+              <View style={styles.zoomChip} pointerEvents="none">
+                <SearchIcon size={13} color="#FFFFFF" strokeWidth={2.6} />
+                <Text style={styles.zoomChipText}>Toque para ampliar</Text>
+              </View>
+            </Pressable>
           </View>
 
           <View style={styles.infoPosterCard}>
             <Text style={styles.infoPosterTitle}>A doença raiva</Text>
-            <View style={styles.infoBannerFrame}>
+            <Pressable
+              accessibilityRole="imagebutton"
+              accessibilityLabel="Ampliar imagem: A doença raiva"
+              onPress={() => openZoom({ source: IMG_RAIVA, title: 'A doença raiva', aspectRatio: 1600 / 2114 })}
+              style={({ pressed }) => [styles.infoBannerFrame, pressed && styles.infoBannerPressed]}
+            >
               <Image
                 source={IMG_RAIVA}
                 style={{
@@ -892,9 +912,20 @@ export default function MaisScreens({
                 resizeMode="cover"
                 resizeMethod="resize"
               />
-            </View>
+              <View style={styles.zoomChip} pointerEvents="none">
+                <SearchIcon size={13} color="#FFFFFF" strokeWidth={2.6} />
+                <Text style={styles.zoomChipText}>Toque para ampliar</Text>
+              </View>
+            </Pressable>
           </View>
         </ScrollView>
+        <ZoomableImageModal
+          visible={zoomVisible}
+          source={zoomImage?.source}
+          title={zoomImage?.title}
+          aspectRatio={zoomImage?.aspectRatio}
+          onClose={() => setZoomVisible(false)}
+        />
       </View>
     );
   }
@@ -1884,6 +1915,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#F6F3FF',
     position: 'relative',
   },
+  infoBannerPressed: { opacity: 0.88 },
+  zoomChip: {
+    position: 'absolute', right: 10, bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(28, 13, 54, 0.72)',
+  },
+  zoomChipText: { fontSize: 12, fontFamily: 'PlusJakartaSans-Bold', color: '#FFFFFF', includeFontPadding: false },
   fullBannerImg: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',

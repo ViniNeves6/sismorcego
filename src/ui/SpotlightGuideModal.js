@@ -79,7 +79,7 @@ export const SPOTLIGHT_COMMON_STEPS = [
     screen: 'new',
     title: 'Preencha a notificação',
     description:
-      'Escolha a vítima, capture GPS e foto, depois informe data, município e localidade.',
+      'Escolha a espécie mordida, obtenha a localização pelo GPS, tire a foto, depois informe data, município e localidade.',
     boldWords: [],
     targetKey: 'notificationOverview',
     overview: true,

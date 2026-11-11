@@ -291,7 +291,7 @@ export default function RegistrosScreen({
             onChangeText={setSearchQuery}
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
-            placeholder="Buscar por município, vítima ou comunidade..."
+            placeholder="Buscar por município, espécie ou comunidade..."
             placeholderTextColor="#796E92"
           />
         </View>
@@ -312,10 +312,10 @@ export default function RegistrosScreen({
             <Pressable
               onPress={onOpenAdminVictimFilter}
               style={[styles.adminSelectField, { flexBasis: 158 * Math.max(1, fontScale || 1) }]}
-              accessibilityLabel="Filtrar por vítima"
+              accessibilityLabel="Filtrar por espécie mordida"
             >
               <Text style={styles.adminSelectFieldText}>
-                {`Vítima: ${adminVictimFilter === 'all' ? 'Todas' : (VICTIM_FILTER_OPTIONS.find((o) => o.key === adminVictimFilter)?.label || adminVictimFilter)}`}
+                {`Espécie: ${adminVictimFilter === 'all' ? 'Todas' : (VICTIM_FILTER_OPTIONS.find((o) => o.key === adminVictimFilter)?.label || adminVictimFilter)}`}
               </Text>
               <ChevronDownIcon size={17} color="#5E5473" />
             </Pressable>

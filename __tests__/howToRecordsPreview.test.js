@@ -15,9 +15,9 @@ afterEach(async () => { if (tree) await act(async () => tree.unmount()); tree = 
 test.each([false, true])('help first picture uses the current search/status layout with coordinator=%s', async isCoordenador => {
   await act(async () => { tree = Renderer.create(<HowToModal visible reduceMotion isCoordenador={isCoordenador} />); });
   expect(tree.root.findAllByType(Image)).toHaveLength(2);
-  expect(text()).toEqual(expect.arrayContaining(['Buscar por município, vítima ou comunidade...', 'Todos', 'Pendentes', 'Enviados']));
+  expect(text()).toEqual(expect.arrayContaining(['Buscar por município, espécie ou comunidade...', 'Todos', 'Pendentes', 'Enviados']));
   expect(text().includes('Município: Todos')).toBe(isCoordenador);
-  expect(text().includes('Vítima: Todas')).toBe(isCoordenador);
+  expect(text().includes('Espécie: Todas')).toBe(isCoordenador);
   const preview = tree.root.findByType(HowToRecordsPreview);
   expect(preview.props.isCoordenador).toBe(isCoordenador);
 });

@@ -37,7 +37,7 @@ export default function NovoRegistro({ navigation, route }) {
   const { spacing, radius, colors } = useTheme();
   const toast = useToast();
   const { role } = useAuth();
-  useSpeakOnMount("Novo registro. Preencha os dados comuns e escolha o tipo de vítima.");
+  useSpeakOnMount("Novo registro. Preencha os dados comuns e escolha a espécie mordida.");
 
   const scrollRef = useRef(null);
 
@@ -163,7 +163,7 @@ export default function NovoRegistro({ navigation, route }) {
 
       <Section title="Localização" description="Use o GPS do aparelho no local da ocorrência.">
         <Button
-          title={location ? "Atualizar localização" : "Obter localização"}
+          title={location ? "Atualizar localização" : "Obter a localização pelo GPS"}
           icon="crosshair"
           variant="secondary"
           onPress={captureLocation}
@@ -220,7 +220,7 @@ export default function NovoRegistro({ navigation, route }) {
         ) : null}
       </Section>
 
-      <Section title="Tipo de vítima" description="Escolha pra continuar — a próxima tela pede os dados específicos.">
+      <Section title="Espécie mordida" description="Escolha pra continuar — a próxima tela pede os dados específicos.">
         <View style={{ gap: spacing.md }}>
           {TIPOS_VITIMA.map((tipo) => (
             <Button

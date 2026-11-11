@@ -29,7 +29,7 @@ function Form({ initialCity = '', initialCommunity = '', visible = true }) {
 const mount = async props => act(async () => { tree = TestRenderer.create(<Form {...props} />); });
 const field = placeholder => tree.root.findAllByType(TextInput).find(node => node.props.placeholder === placeholder);
 const gpsButton = () => tree.root.findAll(node => typeof node.props.onPress === 'function'
-  && node.findAllByType(Text).some(text => ['Capturar coordenadas GPS', 'Coordenadas GPS gravadas com sucesso'].includes(text.props.children)))[0];
+  && node.findAllByType(Text).some(text => ['Obter a localização pelo GPS', 'Coordenadas GPS gravadas com sucesso'].includes(text.props.children)))[0];
 
 beforeEach(() => {
   jest.clearAllMocks();

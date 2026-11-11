@@ -23,8 +23,8 @@ const resumoVitima = (registro) => {
   const tipo = registro.tipoVitima;
   const d = registro.detalhes || {};
 
-  if (!tipo) return registro.nomeAgredido || "Vítima não identificada";
-  if (tipo === "humano") return d.nomeAgredido || "Vítima não identificada";
+  if (!tipo) return registro.nomeAgredido || "Pessoa não identificada";
+  if (tipo === "humano") return d.nomeAgredido || "Pessoa não identificada";
   if (tipo === "caninoFelino") return d.especie === "felina" ? "Felino" : "Canino";
   if (tipo === "aves") return "Ave";
   if (tipo === "producao") return "Animal de produção";

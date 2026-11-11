@@ -70,7 +70,7 @@ describe('Spotlight interactive guide & welcome modal specifications', () => {
     expect(acsSteps[4]).toMatchObject({
       screen: 'new',
       title: 'Preencha a notificação',
-      description: 'Escolha a vítima, capture GPS e foto, depois informe data, município e localidade.',
+      description: 'Escolha a espécie mordida, obtenha a localização pelo GPS, tire a foto, depois informe data, município e localidade.',
       targetKey: 'notificationOverview',
       overview: true,
       scrollAnchor: 'victimSection',

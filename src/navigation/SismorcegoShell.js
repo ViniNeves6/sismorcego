@@ -53,6 +53,7 @@ import useCoordinatorNavigation from '../hooks/useCoordinatorNavigation';
 import useCoordinatorAlerts from '../hooks/useCoordinatorAlerts';
 import { canAccessCoordinatorArea } from '../services/roleAccess';
 import { generateRegistroPdf, savePdf } from '../services/registroPdf';
+import { withCloudPhotoRaw, withCloudPhotoView } from '../services/recordPhotoCloud';
 import PdfOptionsSheet from '../pages/Main/buscar/PdfOptionsSheet';
 import PdfViewerModal from '../pages/Main/buscar/PdfViewerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -361,12 +362,20 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
       showToast(count ? 'Todos os alertas foram marcados como lidos.' : 'Nenhum alerta aguardando leitura.');
     } catch (error) { showToast(error.message || 'Não foi possível marcar todos como lidos.'); }
   };
+  // Registros vindos da nuvem (de outro aparelho) buscam a foto ao abrir os detalhes.
+  const openRecordDetails = record => {
+    setSelectedRecord(record);
+    setRecordDetailsVisible(true);
+    withCloudPhotoView(record).then(withPhoto => {
+      if (withPhoto === record) return;
+      setSelectedRecord(current => (current && current.id === record.id && current.uid === record.uid && !current.photo ? withPhoto : current));
+    }).catch(() => {});
+  };
   const handleSelectAlert = async item => {
     try {
       const record = await resolveAlertRecord(item);
       setRecords(previous => previous.map(current => current.id === record.id && current.uid === record.uid ? record : current));
-      setSelectedRecord(record);
-      setRecordDetailsVisible(true);
+      openRecordDetails(record);
       if (!item.lida) handleMarkAlertRead(item);
     } catch (error) { showToast(error.message || 'Não foi possível carregar a ocorrência.'); }
   };
@@ -397,9 +406,9 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
     setBottomSheetConfig({
       visible: true,
       id: 'reg-victim',
-      title: 'Tipo de vítima',
+      title: 'Espécie mordida',
       options: [
-        { id: 'all', label: 'Todas as vítimas' },
+        { id: 'all', label: 'Todas as espécies mordidas' },
         { id: 'humano', label: 'Humano' },
         { id: 'canino', label: 'Canino / Felino' },
         { id: 'aves', label: 'Aves' },
@@ -742,10 +751,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
               onRefresh={refreshRecords}
               onOpenHowTo={() => setHowToVisible(true)}
               onSyncNow={() => syncRecords(true)}
-              onSelectRecord={(rec) => {
-                setSelectedRecord(rec);
-                setRecordDetailsVisible(true);
-              }}
+              onSelectRecord={openRecordDetails}
               guideRefs={guideTargetRefs}
               guideScroll={guideScrollTargets.home}
               isCoordenador={isCoordenador}
@@ -1184,7 +1190,7 @@ export default function SismorcegoShell({ onInitialScreenReady } = {}) {
           onExited={() => { if (pendingPdf.current) { setPdf(pendingPdf.current); pendingPdf.current = null; } }}
           onSelect={async (registro, options) => {
             setGeneratingPdf(true);
-            try { pendingPdf.current = await generateRegistroPdf(registro, options); setPdfRecord(null); }
+            try { pendingPdf.current = await generateRegistroPdf(await withCloudPhotoRaw(registro), options); setPdfRecord(null); }
             catch (error) { showToast(error.message || 'Não foi possível gerar o PDF.'); }
             finally { setGeneratingPdf(false); }
           }} />

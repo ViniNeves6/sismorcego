@@ -20,7 +20,7 @@ const REGIAO_PADRAO = {
 };
 
 const VICTIM_LABELS = {
-  all: 'Todos os tipos de vítima',
+  all: 'Todas as espécies mordidas',
   humano: 'Humano',
   canino: 'Canino / Felino',
   aves: 'Aves',
@@ -116,7 +116,7 @@ export default function AdminPanelScreen({
   const handleOpenVictimFilter = () => {
     if (!onOpenBottomSheet) return;
     const options = [
-      { id: 'all', label: 'Todos os tipos de vítima' },
+      { id: 'all', label: 'Todas as espécies mordidas' },
       { id: 'humano', label: 'Humano' },
       { id: 'canino', label: 'Canino / Felino' },
       { id: 'aves', label: 'Aves' },
@@ -124,7 +124,7 @@ export default function AdminPanelScreen({
     ];
     onOpenBottomSheet({
       id: 'admin-victim',
-      title: 'Tipo de vítima',
+      title: 'Espécie mordida',
       options,
       selectedValue: selectedVictim,
       onSelect: (opt) => setSelectedVictimKey(opt.id),
@@ -174,10 +174,10 @@ export default function AdminPanelScreen({
               <Pressable
                 onPress={handleOpenVictimFilter}
                 style={[styles.selectField, styles.selectFieldFull]}
-                accessibilityLabel="Filtrar por tipo de vítima"
+                accessibilityLabel="Filtrar por espécie mordida"
               >
                 <Text style={styles.selectFieldText}>
-                  {VICTIM_LABELS[selectedVictim] || 'Todos os tipos de vítima'}
+                  {VICTIM_LABELS[selectedVictim] || 'Todas as espécies mordidas'}
                 </Text>
                 <ChevronDownIcon size={20} color="#5E5473" />
               </Pressable>

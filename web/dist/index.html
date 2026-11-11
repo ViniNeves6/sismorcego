@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+    <title>Sismorcego</title>
+    <meta name="description" content="Vigilância da raiva: registro de agressões por morcegos (versão de treinamento)." />
+    <meta name="theme-color" content="#2E1065" />
+    <!-- iPhone: "Adicionar à Tela de Início" abre em tela cheia, como um app -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Sismorcego" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/app.css" />
+    <style>
+      @font-face { font-family: 'Feather'; src: url('/fonts/Feather.ttf') format('truetype'); font-display: block; }
+      @font-face { font-family: 'PlusJakartaSans-Regular'; src: url('/fonts/PlusJakartaSans-Regular.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'PlusJakartaSans-Medium'; src: url('/fonts/PlusJakartaSans-Medium.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'PlusJakartaSans-SemiBold'; src: url('/fonts/PlusJakartaSans-SemiBold.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'PlusJakartaSans-Bold'; src: url('/fonts/PlusJakartaSans-Bold.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'PlusJakartaSans-ExtraBold'; src: url('/fonts/PlusJakartaSans-ExtraBold.ttf') format('truetype'); font-display: swap; }
+      html, body { height: 100%; margin: 0; background: #2E1065; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+      body { -webkit-text-size-adjust: 100%; }
+      /* No computador o app fica numa coluna de celular; no iPhone ocupa a tela toda. */
+      #root { position: fixed; inset: 0; display: flex; max-width: 520px; margin: 0 auto; background: #F8F6FD; overflow: hidden; }
+      input, textarea { font-size: 16px; } /* evita o zoom automático do Safari ao focar */
+      input[type=date] { font-family: inherit; }
+      .leaflet-container { font-family: inherit; }
+      /* Visualizador de imagens: a pinça e o arrasto ficam com o app, não com o Safari. */
+      [data-testid="zoom-area"] { touch-action: none; }
+    </style>
+  </head>
+  <body>
+    <noscript>Ative o JavaScript para usar o Sismorcego.</noscript>
+    <div id="root"></div>
+    <script>
+      // iPhone: o Safari ignora user-scalable=no; sem isto a pinça ampliaria a página inteira.
+      document.addEventListener('gesturestart', function (e) { e.preventDefault(); }, { passive: false });
+    </script>
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 const TYPE_LABELS = {
-  humano: 'Vítima humana', caninoFelino: 'Canino / Felino', canino: 'Canino / Felino',
+  humano: 'Humano', caninoFelino: 'Canino / Felino', canino: 'Canino / Felino',
   aves: 'Aves', producao: 'Animal de produção',
 };
 const COMMON_FIELDS = new Set(['Nome do notificador', 'Data do registro', 'Data da mordedura', 'Município', 'Localidade/comunidade']);
@@ -11,7 +11,7 @@ const display = value => value == null || value === '' || value === '-' ? 'Não 
 export function buildFichaModel(registro, campos, imageBase64) {
   const sections = [
     { title: 'Notificação e local', fields: campos.filter(field => COMMON_FIELDS.has(field.label)) },
-    { title: 'Informações da vítima', fields: campos.filter(field => !COMMON_FIELDS.has(field.label) && !GPS_FIELDS.has(field.label)) },
+    { title: 'Informações da espécie mordida', fields: campos.filter(field => !COMMON_FIELDS.has(field.label) && !GPS_FIELDS.has(field.label)) },
     { title: 'Georreferenciamento', fields: campos.filter(field => GPS_FIELDS.has(field.label)) },
   ].filter(section => section.fields.length);
   if (registro.lifecycleStatus === 'cancelled') sections.unshift({ title: 'Cancelamento', fields: [

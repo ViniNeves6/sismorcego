@@ -88,7 +88,7 @@ export default function HowToModal({ visible, onClose, isCoordenador = false, re
 
   useSpeakOnMount(`Como usar o Sismorcego. Passo ${step + 1} de 3. ${[
     'Consulte os registros disponíveis no aparelho e filtre entre todos, pendentes e enviados',
-    'Registre a ocorrência em Notificar, informando o tipo de vítima e os dados do local',
+    'Registre a ocorrência em Notificar, informando a espécie mordida e os dados do local',
     'Toque em Sincronizar agora para enviar os registros pendentes quando houver conexão',
   ][step]}. Use os botões para avançar ou voltar`, { active: visible, priority: 30 });
   if (!rendered) return null;

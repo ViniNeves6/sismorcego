@@ -71,7 +71,7 @@ export default function RegistroHumano({ navigation, route }) {
 
   return (
     <ScrollScreen
-      header={<ScreenHeader title="Vítima humana" onBack={() => navigation.goBack()} />}
+      header={<ScreenHeader title="Humano" onBack={() => navigation.goBack()} />}
       footer={
         <FooterBar>
           <Button title="Salvar registro" icon="check" onPress={salvarRegistro} loading={saving} />

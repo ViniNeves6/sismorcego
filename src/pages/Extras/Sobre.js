@@ -13,7 +13,7 @@ const EVENTO_ASPECT_RATIO = 16 / 9;
 const EVENTOS = [
   {
     titulo: 'DRA - Curuçá 2024',
-    imagem: require('../../assets/images/DRA.png'),
+    imagem: require('../../assets/images/DRA.jpg'),
   },
 ];
 

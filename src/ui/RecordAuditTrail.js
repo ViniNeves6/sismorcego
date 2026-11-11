@@ -6,9 +6,9 @@ import { recordIdentity } from '../services/recordLifecycle';
 import { parseRegistroDate } from '../services/registroDate';
 
 const titles = { create: 'Criação', edit: 'Edição', cancel: 'Cancelamento' };
-const fields = { municipio: 'Município', localidade: 'Localidade / Comunidade', tipoVitima: 'Tipo de vítima',
+const fields = { municipio: 'Município', localidade: 'Localidade / Comunidade', tipoVitima: 'Espécie mordida',
   nomeAcs: 'Responsável original', nomeNotificador: 'Responsável original', dataAgressao: 'Data da ocorrência',
-  dataMordedura: 'Data da ocorrência', detalhes: 'Dados da vítima', location: 'GPS', photo: 'Fotografia',
+  dataMordedura: 'Data da ocorrência', detalhes: 'Dados da espécie mordida', location: 'GPS', photo: 'Fotografia',
   lifecycleStatus: 'Situação', cancellation: 'Cancelamento', notificadorTipo: 'Tipo de notificador' };
 const display = value => value == null || value === '' ? 'Não informado' : typeof value === 'boolean' ? (value ? 'Sim' : 'Não')
   : typeof value === 'object' ? Object.entries(value).map(([key, item]) => `${key}: ${display(item)}`).join('; ') : String(value);

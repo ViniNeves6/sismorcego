@@ -8,7 +8,7 @@ import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 
 const CREDITOS_POR_EIXO = {
   Tecnologia: [
-    { nome: 'Pedro Dimas', funcao: 'Bolsista', imagem: require('../../assets/images/pedro.png') },
+    { nome: 'Pedro Dimas', funcao: 'Bolsista', imagem: require('../../assets/images/pedro.jpg') },
     { nome: 'André Vinicius', funcao: 'Bolsista', imagem: require('../../assets/images/andre.png') },
     { nome: 'Paulo Pontes', funcao: 'Orientador', imagem: require('../../assets/images/paulo.png') },
     { nome: 'Marcos Seruffo', funcao: 'Orientador', imagem: require('../../assets/images/seruffo.png') },

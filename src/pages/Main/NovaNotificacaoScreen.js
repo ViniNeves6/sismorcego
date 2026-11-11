@@ -97,10 +97,10 @@ export default function NovaNotificacaoScreen({
 
   const activeForm = VICTIM_FORMS[activeVictimSubscreen];
   const activeValues = victimData?.[activeVictimSubscreen] || {};
-  useSpeakOnMount(sentences('Nova notificação', activeForm ? activeForm.title || VICTIM_TILES.find(item => item.key === activeVictimSubscreen)?.label : 'Informe o responsável, selecione o tipo de vítima e preencha os dados da ocorrência',
+  useSpeakOnMount(sentences('Nova notificação', activeForm ? activeForm.title || VICTIM_TILES.find(item => item.key === activeVictimSubscreen)?.label : 'Informe o responsável, selecione a espécie mordida e preencha os dados da ocorrência',
     activeForm ? activeForm.groups.flatMap(group => group.fields).filter(field => isVictimFieldVisible(field, activeValues)).map(field => field.label) : '',
     !activeForm && dateState?.display ? `Data da ocorrência: ${dateState.display}` : '',
-    activeForm ? 'Preencha os campos e salve os dados da vítima' : 'Você pode adicionar GPS e foto. Ao terminar, salve a notificação'));
+    activeForm ? 'Preencha os campos e salve os dados da espécie mordida' : 'Você pode adicionar GPS e foto. Ao terminar, salve a notificação'));
   const vfAutoAdvance = useFormAutoAdvance({
     sessionKey: activeVictimSubscreen,
     fieldKeys: activeForm?.groups.flatMap(group => group.fields)
@@ -182,7 +182,7 @@ export default function NovaNotificacaoScreen({
       return;
     }
 
-    showToast?.(form?.savedMsg || 'Dados da vítima concluídos!');
+    showToast?.(form?.savedMsg || 'Dados da espécie mordida concluídos!');
     setActiveVictimSubscreen(null);
   };
 
@@ -274,7 +274,7 @@ export default function NovaNotificacaoScreen({
     }
     if (!selectedVictimKey) {
       mainScrollRef.current?.scrollTo({ y: 0, animated: !reduceMotion });
-      showToast?.('Selecione o tipo de vítima no passo 1');
+      showToast?.('Selecione a espécie mordida no passo 1');
       return;
     }
     if (!victimSaved[selectedVictimKey]) {
@@ -515,12 +515,12 @@ export default function NovaNotificacaoScreen({
             </Pressable>
           </View>
 
-          {/* Step 1: Tipo de vítima */}
+          {/* Step 1: Espécie mordida */}
           <View ref={guideRefs.victimSection} collapsable={false} style={styles.sectionCard}>
             <View style={styles.boxHeader}>
               <TagInfoIcon size={15} color="#6824D6" />
               <Text style={styles.boxHeaderText}>
-                1. QUAL O TIPO DE VÍTIMA?
+                1. QUAL A ESPÉCIE MORDIDA?
               </Text>
             </View>
 
@@ -614,7 +614,7 @@ export default function NovaNotificacaoScreen({
                     ? 'Obtendo sua localização...'
                     : isGpsDone
                     ? 'Coordenadas GPS gravadas com sucesso'
-                    : 'Capturar coordenadas GPS'}
+                    : 'Obter a localização pelo GPS'}
                 </Text>
                 <Text style={[styles.gpsSub, isGpsDone && styles.gpsSubDone]}>
                   {isGpsLoading
@@ -661,7 +661,7 @@ export default function NovaNotificacaoScreen({
                 <Pressable onPress={() => setPhotoState(null)} style={[styles.mediaCardBtn, { marginTop: 12 }]}><Text style={styles.mediaCardBtnText}>Remover fotografia</Text></Pressable>
               </View>
             </AnimatedField>
-            <Text style={{fontSize:11,color:'#796E92',marginTop:8}}>Novas fotos ficam somente neste celular nesta versão.</Text>
+            <Text style={{fontSize:11,color:'#796E92',marginTop:8}}>A foto é enviada junto com o registro quando houver internet.</Text>
           </View>
 
           {/* Step 3: Dados do Local e Data */}

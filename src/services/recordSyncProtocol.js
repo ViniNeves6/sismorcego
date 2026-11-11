@@ -15,8 +15,8 @@ export function buildCloudPayload(registro, uid) {
   if (registro.location && !isValidGpsCoordinates(registro.location.latitude, registro.location.longitude)) {
     throw new Error('Coordenadas GPS inválidas. Atualize a localização do registro antes de sincronizar.');
   }
-  // Nesta fase Spark, imagens novas permanecem no aparelho. Campos legados
-  // já existentes no servidor não são enviados, removidos ou sobrescritos.
+  // A foto não vai na ficha: syncRecordPhoto grava foto/principal à parte.
+  // Campos de foto legados já existentes no servidor não são enviados nem removidos.
   return {
     recordId: String(registro.recordId), uid,
     tipoVitima: registro.tipoVitima ?? null, notificadorTipo: registro.notificadorTipo ?? null,
