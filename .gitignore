@@ -86,3 +86,7 @@ yarn-error.log
 
 # Pré-visualizações e arquivos temporários de conferência do PDF
 /tmp/pdfs/
+
+# Gerados pelo build do APK (bundle JS e imagens copiadas pelo react-native bundle)
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/res/drawable-*/

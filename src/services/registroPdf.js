@@ -258,6 +258,7 @@ export function buildCamposFicha(registro, { includeNames, includeLocation }) {
     }
   }
 
+  if (tipo && d.localAgressao) campos.push({ label: "Local da agressão", value: d.localAgressao });
   campos.push({ label: "Latitude", value: latTxt }, { label: "Longitude", value: lngTxt });
   return campos;
 }

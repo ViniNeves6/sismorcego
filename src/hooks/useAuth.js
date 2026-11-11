@@ -1,5 +1,5 @@
 // src/hooks/useAuth.js
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 
 // Autenticação Firebase em produção; acesso local isolado em Debug.
 import {
@@ -22,22 +22,14 @@ import { isSharedPhotoUrl, saveLocalProfilePhoto, validateRegistration } from '.
 import { detachPushDevice } from '../services/pushDevices';
 import { ensureAccountRole } from '../services/accountBootstrap';
 import { normalizeName, normalizeEmail } from '../services/editChanges';
+import { COORDINATOR_EVALUATION } from '../services/appEnvironment';
+import AuthContext from './authContext';
+import EvaluationAuthProvider from './EvaluationAuthProvider';
 
 // Busca o papel do usuário (usuarios/{uid}.role); cria o doc como "acs" se não existir.
 const ensureUserRole = (uid,email) => ensureAccountRole(db,uid,email);
 
-const AuthContext = createContext({
-  user: null,
-  role: null,
-  loading: false,
-  signIn: async () => {},
-  signUp: async () => {},
-  resetPassword: async () => {},
-  signOut: async () => {},
-  updateUser: async () => {},
-});
-
-export const AuthProvider = ({ children }) => {
+const StandardAuthProvider = ({ children }) => {
   const registering = useRef(false);
   const [user, setUser] = useState(LOCAL_TEST_MODE ? LOCAL_TEST_USER : null);      // usuário atual (ou null)
   const [role, setRole] = useState(
@@ -228,6 +220,10 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };
+
+export const AuthProvider = ({ children }) => COORDINATOR_EVALUATION
+  ? <EvaluationAuthProvider>{children}</EvaluationAuthProvider>
+  : <StandardAuthProvider>{children}</StandardAuthProvider>;
 
 export default function useAuth() {
   return useContext(AuthContext);

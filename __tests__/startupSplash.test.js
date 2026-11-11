@@ -5,12 +5,13 @@ import StartupSplash, { MIN_SPLASH_MS, SPLASH_FADE_MS } from '../src/navigation/
 import Navigation from '../src/navigation';
 import { SCREEN_FADE_IN_MS, SCREEN_FADE_OUT_MS, screenFadeTiming } from '../src/ui/screenFade';
 
-let mockAuth, mockReducedMotion = false, mockColors, mockHomologation = false;
-jest.mock('../src/services/appEnvironment', () => ({ get REAL_FIREBASE_HOMOLOGATION() { return mockHomologation; } }));
+let mockAuth, mockReducedMotion = false, mockColors, mockHomologation = false, mockEvaluation = false;
+jest.mock('../src/services/appEnvironment', () => ({ get REAL_FIREBASE_HOMOLOGATION() { return mockHomologation; }, get COORDINATOR_EVALUATION() { return mockEvaluation; } }));
+jest.mock('../src/pages/Auth/EvaluationSetupScreen', () => 'EvaluationSetupScreen');
 jest.mock('../src/hooks/useAuth', () => () => mockAuth);
 jest.mock('../src/ui/useReduceMotion', () => () => mockReducedMotion);
 jest.mock('../src/hooks/useSpeakOnMount', () => jest.fn());
-jest.mock('../src/navigation/BatSwarm', () => 'BatSwarm');
+jest.mock('../src/ui/WelcomeScene', () => 'WelcomeScene');
 jest.mock('../src/navigation/SismorcegoShell', () => 'SismorcegoShell');
 jest.mock('../src/navigation/AuthStack', () => 'AuthStack');
 jest.mock('../src/theme/ThemeProvider', () => ({ useTheme: () => ({ colors: mockColors }), makeNavigationTheme: () => ({}) }));
@@ -28,7 +29,7 @@ const fade = () => animations.filter(animation => animation.config.toValue === 0
 const finish = async animation => act(async () => animation.finish());
 const splashLayer = () => tree.root.findAllByType(View).find(node => node.props.testID === 'startup-splash');
 beforeEach(() => {
-  jest.useFakeTimers(); animations = []; mockReducedMotion = false; mockHomologation = false;
+  jest.useFakeTimers(); animations = []; mockReducedMotion = false; mockHomologation = false; mockEvaluation = false;
   mockColors = { brandDeep: '#2E1065', onBrand: '#FFFFFF', canvas: '#FFFFFF' };
   mockAuth = { user: null, loading: false }; onExited = jest.fn(); removeBack = jest.fn();
   jest.spyOn(BackHandler, 'addEventListener').mockImplementation((event, callback) => { back = callback; return { remove: removeBack }; });
@@ -46,25 +47,23 @@ afterEach(async () => {
   jest.clearAllTimers(); jest.restoreAllMocks(); jest.useRealTimers();
 });
 
-test('restores the original violet canvas, centered 120 x 95 logo and automatic swarm with a short entrance', async () => {
+test('opens with the colorful welcome scene on the violet canvas and a short entrance', async () => {
   await render(<StartupSplash ready onExited={onExited} />);
   expect(StyleSheet.flatten(splashLayer().props.style).backgroundColor).toBe('#2E1065');
-  const logo = tree.root.findByType(Image);
-  expect(StyleSheet.flatten(logo.props.style)).toMatchObject({ width: 120, height: 95, tintColor: '#FFFFFF' });
-  const stage = tree.root.findAllByType(View).find(node => StyleSheet.flatten(node.props.style)?.justifyContent === 'center');
-  expect(StyleSheet.flatten(stage.props.style).alignItems).toBe('center');
-  expect(tree.root.findByType('BatSwarm').props.reduced).toBe(false);
+  expect(tree.root.findAllByType(Image)).toHaveLength(0);
+  expect(tree.root.findByType('WelcomeScene').props.reduceMotion).toBe(false);
+  expect(tree.root.findByProps({ testID: 'splash-artwork' }).props.accessibilityLabel).toBe('Bem-vindo ao Sismorcego. Iniciando aplicativo');
   expect(animations[0].config).toMatchObject({ toValue: 1, duration: 150, useNativeDriver: true });
   expect(tree.root.findAll(node => typeof node.props.onPress === 'function')).toHaveLength(0);
 });
 
-test('keeps the complete splash mounted for 2900 ms and until its 250 ms fade finishes', async () => {
+test('keeps the complete splash mounted for the minimum time and until its 250 ms fade finishes', async () => {
   await render(<StartupSplash ready onExited={onExited} />);
   await tick(MIN_SPLASH_MS - 1); expect(fade()).toBeUndefined(); expect(onExited).not.toHaveBeenCalled();
   await tick(1);
   expect(fade().config).toMatchObject({ duration: SPLASH_FADE_MS, toValue: 0, useNativeDriver: true });
   await act(async () => fade().value.setValue(0.5));
-  expect(splashLayer()).toBeTruthy(); expect(tree.root.findByType(Image)).toBeTruthy();
+  expect(splashLayer()).toBeTruthy(); expect(tree.root.findByType('WelcomeScene')).toBeTruthy();
   expect(onExited).not.toHaveBeenCalled();
   await finish(fade()); expect(onExited).toHaveBeenCalledTimes(1);
 });
@@ -88,7 +87,7 @@ test('auth becoming busy during the exit cancels it and ignores a stale completi
 
 test('reduced motion preserves the minimum display time with no flight or fade', async () => {
   mockReducedMotion = true; await render(<StartupSplash ready onExited={onExited} />);
-  expect(tree.root.findByType('BatSwarm').props.reduced).toBe(true); expect(animations).toHaveLength(0);
+  expect(tree.root.findByType('WelcomeScene').props.reduceMotion).toBe(true); expect(animations).toHaveLength(0);
   await tick(MIN_SPLASH_MS - 1); expect(onExited).not.toHaveBeenCalled();
   await tick(1); expect(onExited).toHaveBeenCalledTimes(1); expect(animations).toHaveLength(0);
 });
@@ -105,7 +104,7 @@ test('high contrast retains the theme colors instead of forcing the violet palet
   mockColors = { ...mockColors, brandDeep: '#000000', onBrand: '#FFD700' };
   await render(<StartupSplash ready onExited={onExited} />);
   expect(StyleSheet.flatten(splashLayer().props.style).backgroundColor).toBe('#000000');
-  expect(StyleSheet.flatten(tree.root.findByType(Image).props.style).tintColor).toBe('#FFD700');
+  expect(tree.root.findByType('WelcomeScene')).toBeTruthy();
 });
 
 test('Android Back keeps its default exit action, with startup resources released on unmount', async () => {
@@ -143,7 +142,7 @@ test('startup covers its artwork, prepares login layout, and reveals the same lo
   await tick(MIN_SPLASH_MS - 1); expect(loginCover()).toBeUndefined();
   await tick(1); expect(loginCover().config).toMatchObject({ duration: SCREEN_FADE_OUT_MS, toValue: 1 });
   await act(async () => loginCover().value.setValue(0.5));
-  expect(tree.root.findAllByType(Image)).toHaveLength(1);
+  expect(tree.root.findAllByType('WelcomeScene')).toHaveLength(1);
   expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
   await finish(loginCover());
   const login = tree.root.findByType('AuthStack');
@@ -236,7 +235,7 @@ test('startup screen transition uses the screen fade without fading elevated car
     await act(async () => cover.value.setValue(progress));
     const opacity = StyleSheet.flatten(splashLayer().props.style).opacity;
     expect(opacity.__getValue ? opacity.__getValue() : opacity).toBe(1);
-    expect(tree.root.findAllByType(Image)).toHaveLength(1); expect(onExited).not.toHaveBeenCalled();
+    expect(tree.root.findAllByType('WelcomeScene')).toHaveLength(1); expect(onExited).not.toHaveBeenCalled();
   }
   expect(cover.config.easing(0.4)).toBeCloseTo(screenFadeTiming(false).easing(0.4));
   await finish(cover);
@@ -253,7 +252,7 @@ test.each(['cover', 'reveal'])('auth resuming during startup screen transition %
   if (phase === 'reveal') { await revealLogin(); old = fade(); }
   await update(<StartupSplash ready={false} screenTransition onExited={onExited} />);
   expect(old.stop).toHaveBeenCalled(); await finish(old); expect(onExited).not.toHaveBeenCalled();
-  expect(tree.root.findAllByType(Image)).toHaveLength(1);
+  expect(tree.root.findAllByType('WelcomeScene')).toHaveLength(1);
   await update(<StartupSplash ready screenTransition onExited={onExited} />);
   await revealLogin(); await finish(fade()); expect(onExited).toHaveBeenCalledTimes(1);
 });
@@ -296,4 +295,53 @@ test('reduced motion does not add a login cover, delay or Back-handler after sta
   expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
   expect(animations).toHaveLength(0);
   expect(BackHandler.addEventListener).toHaveBeenCalledTimes(handlers);
+});
+
+
+test('evaluation shows only automatic access status and enters the coordinator without replaying startup', async () => {
+  mockEvaluation = true;
+  mockAuth = { user: null, loading: false, evaluation: { status: 'checking' } };
+  await completeStartup();
+  expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
+  mockAuth = { user: { uid: 'shared' }, role: 'coordenador', loading: false, evaluation: { status: 'ready' } };
+  await update(<Navigation />);
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
+  expect(tree.root.findAllByType(StartupSplash)).toHaveLength(0);
+  mockAuth = { ...mockAuth, user: null, role: null, evaluation: { status: 'expired' } };
+  await update(<Navigation />);
+  expect(tree.root.findAllByType('AuthStack')).toHaveLength(0);
+  // A sessão confirmada fica retida e coberta: nada é desmontado.
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(1);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
+  mockAuth = { ...mockAuth, user: null, role: null, evaluation: { status: 'signed-out' } };
+  await update(<Navigation />);
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(0);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
+});
+
+test('returning from gallery/GPS revalidation keeps the same Shell mounted (form state survives) and restores it on ready', async () => {
+  mockEvaluation = true; mockReducedMotion = true;
+  const acs = { uid: 'anon-device' };
+  mockAuth = { user: acs, role: 'acs', loading: false, evaluation: { status: 'ready' } };
+  await completeStartup();
+  const shell = tree.root.findByType('SismorcegoShell');
+  for (const status of ['checking', 'offline', 'checking']) {
+    mockAuth = { ...mockAuth, user: null, role: null, evaluation: { status } };
+    await update(<Navigation />);
+    expect(tree.root.findByType('SismorcegoShell')).toBe(shell);
+    expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
+  }
+  mockAuth = { ...mockAuth, user: acs, role: 'acs', evaluation: { status: 'ready' } };
+  await update(<Navigation />);
+  expect(tree.root.findByType('SismorcegoShell')).toBe(shell);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(0);
+});
+
+test('evaluation rejects an unknown role or an unapproved restored user at the navigation boundary', async () => {
+  mockEvaluation = true;
+  mockAuth = { user: { uid: 'other' }, role: null, loading: false, evaluation: { status: 'ready' } };
+  await completeStartup();
+  expect(tree.root.findAllByType('SismorcegoShell')).toHaveLength(0);
+  expect(tree.root.findAllByType('EvaluationSetupScreen')).toHaveLength(1);
 });

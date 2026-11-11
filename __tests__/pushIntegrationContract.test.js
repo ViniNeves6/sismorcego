@@ -5,7 +5,7 @@ import { setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth } from '../src/services/firebase';
 import * as integration from '../src/services/firebaseIntegration';
 import { listenCoordinatorPush, registerPushBackgroundHandler } from '../src/services/coordinatorPush';
-import { detachPushDevice } from '../src/services/pushDevices';
+import { attachPushDevice, detachPushDevice } from '../src/services/pushDevices';
 import { buildAlertContract, deterministicAlertId, PRIVATE_PUSH_BODY, PRIVATE_PUSH_TITLE } from '../src/services/alertContract';
 import { consumeNotificationPress, rememberNotificationPress } from '../src/services/notificationNavigation';
 import { marcarNotificacaoComoLida } from '../src/services/notificacoes';
@@ -61,6 +61,18 @@ test('mocked FCM registers an installation, refreshes its token and invalidates 
   await detachPushDevice('coord');
   expect(setDoc.mock.calls.at(-1)[1]).toMatchObject({ token: null, enabled: false });
   expect(deleteToken).toHaveBeenCalled(); stop(); await settle();
+});
+
+test('two installations using one UID retain separate token documents and detaching one leaves the other intact (mocked FCM)', async () => {
+  integration.FIREBASE_PUSH_BACKEND_READY = true;
+  const documents = new Map();
+  setDoc.mockImplementation(async (ref, value) => documents.set(ref.path, value));
+  await AsyncStorage.setItem('@sismorcego:pushInstallation', 'device-A');
+  await attachPushDevice('coord', 'token-A');
+  await AsyncStorage.setItem('@sismorcego:pushInstallation', 'device-B');
+  await attachPushDevice('coord', 'token-B'); await detachPushDevice('coord');
+  expect(documents.get('usuarios/coord/dispositivos/device-A')).toMatchObject({ token: 'token-A', enabled: true });
+  expect(documents.get('usuarios/coord/dispositivos/device-B')).toMatchObject({ token: null, enabled: false });
 });
 
 test('foreground and headless pushes expose only generic text and reject another recipient or revoked role', async () => {

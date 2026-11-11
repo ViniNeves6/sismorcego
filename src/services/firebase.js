@@ -16,7 +16,8 @@ import {
 } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import logger from '../utils/logger';
-import { USE_FIREBASE_EMULATORS } from './appEnvironment';
+import { COORDINATOR_EVALUATION, USE_FIREBASE_EMULATORS } from './appEnvironment';
+import { secureEvaluationStorage } from './secureEvaluationStorage';
 
 // =====================
 // Configuração do Firebase
@@ -89,11 +90,12 @@ if (USE_FIREBASE_EMULATORS) {
 if (app) {
   try {
     auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
+      persistence: getReactNativePersistence(COORDINATOR_EVALUATION ? secureEvaluationStorage : AsyncStorage),
     });
   } catch (e1) {
     // Se já tiver sido inicializado (ex.: hot reload), usa getAuth
     try {
+      if (COORDINATOR_EVALUATION && e1.code !== 'auth/already-initialized') throw e1;
       auth = getAuth(app);
     } catch (e2) {
       logger.warn("[firebase] Auth indisponível. Continuando sem auth.", e2);

@@ -55,7 +55,7 @@ class SismorcegoWindowController(private val activity: Activity) {
   private val density = activity.resources.displayMetrics.density.toDouble()
   private val initialBottomPadding = content.paddingBottom
   private var revision = 0
-  private var pendingLayout: View.OnLayoutChangeListener? = null
+  private var pendingLegacyLayout: View.OnLayoutChangeListener? = null
   private var lastInsets: WindowInsetsCompat? = null
   private val globalLayout = ViewTreeObserver.OnGlobalLayoutListener {
     if (animations.isEmpty()) ViewCompat.getRootWindowInsets(content)?.let { apply(it, true) }
@@ -104,26 +104,35 @@ class SismorcegoWindowController(private val activity: Activity) {
       else Rect().also { content.getWindowVisibleDisplayFrame(it) }.bottom.toDouble()
     val next = SismorcegoWindowSnapshot(visible, !settle || animations.isNotEmpty(),
       ime / density, keyboardTop / density, viewportBottom)
-    if (!settle) { SismorcegoWindowState.update(next); return }
-    pendingLayout?.let { content.removeOnLayoutChangeListener(it) }; pendingLayout = null
-    if (content.isLayoutRequested) {
-      val request = ++revision
-      SismorcegoWindowState.update(next.copy(transitioning = true))
-      val listener = object : View.OnLayoutChangeListener {
-        override fun onLayoutChange(v: View, l: Int, t: Int, r: Int, b: Int, ol: Int, ot: Int, or: Int, ob: Int) {
-          content.removeOnLayoutChangeListener(this); pendingLayout = null
-          if (request == revision && animations.isEmpty()) {
-            val xy = IntArray(2).also { content.getLocationOnScreen(it) }
-            SismorcegoWindowState.update(next.copy(viewportBottomPx = xy[1] + content.height - content.paddingBottom))
+    // Legacy adjustResize changes the window bounds themselves. Keep its
+    // existing layout guard; modern adjustNothing owns stable window bounds.
+    if (Build.VERSION.SDK_INT < 30 && settle) {
+      pendingLegacyLayout?.let { content.removeOnLayoutChangeListener(it) }; pendingLegacyLayout = null
+      if (content.isLayoutRequested) {
+        val request = ++revision
+        SismorcegoWindowState.update(next.copy(transitioning = true))
+        val listener = object : View.OnLayoutChangeListener {
+          override fun onLayoutChange(v: View, l: Int, t: Int, r: Int, b: Int, ol: Int, ot: Int, or: Int, ob: Int) {
+            content.removeOnLayoutChangeListener(this); pendingLegacyLayout = null
+            if (request == revision && animations.isEmpty()) {
+              val xy = IntArray(2).also { content.getLocationOnScreen(it) }
+              SismorcegoWindowState.update(next.copy(viewportBottomPx = xy[1] + content.height - content.paddingBottom))
+            }
           }
         }
+        pendingLegacyLayout = listener; content.addOnLayoutChangeListener(listener)
+        return
       }
-      pendingLayout = listener; content.addOnLayoutChangeListener(listener)
-    } else SismorcegoWindowState.update(next)
+    }
+    // The IME callback owns the transition's end. Waiting for an unrelated
+    // layout pass here leaves the dock blank after the keyboard has gone.
+    // The native dock reconciles its position before drawing, independently
+    // of the asynchronous React/Yoga layout that may still be catching up.
+    SismorcegoWindowState.update(next)
   }
   fun requestInsets() { ViewCompat.requestApplyInsets(content) }
   fun dispose() {
-    revision += 1; pendingLayout?.let { content.removeOnLayoutChangeListener(it) }
+    revision += 1; pendingLegacyLayout?.let { content.removeOnLayoutChangeListener(it) }
     if (content.viewTreeObserver.isAlive) content.viewTreeObserver.removeOnGlobalLayoutListener(globalLayout)
     ViewCompat.setOnApplyWindowInsetsListener(content, null)
     ViewCompat.setWindowInsetsAnimationCallback(content, null)
@@ -151,17 +160,23 @@ private class KeyboardDockView(context: ThemedReactContext) : ReactViewGroup(con
   private val position = IntArray(2)
   private val listener: (SismorcegoWindowSnapshot) -> Unit = { syncVisibility() }
   private val preDraw = ViewTreeObserver.OnPreDrawListener {
-    if (visibility != View.VISIBLE) syncVisibility()
+    // Parent bounds can catch up without this view receiving onLayout.
+    // Reconcile visible docks too, so a temporary offset cannot move them.
+    syncVisibility()
     true
   }
   private fun canShowDock(): Boolean {
     val state = SismorcegoWindowState.snapshot
+    if (state.visible || state.transitioning || width <= 0 || height <= 0 || state.viewportBottomPx <= 0) return false
     getLocationOnScreen(position)
-    // Do not reveal at the old, keyboard-raised Yoga position while the root
-    // has already resized. Wait for actual geometry, never a fixed timeout.
-    val atBottom = width > 0 && state.viewportBottomPx > 0 &&
-      abs(position[1] + height - state.viewportBottomPx) <= max(2, resources.displayMetrics.density.toInt())
-    return !state.visible && !state.transitioning && atBottom
+    if (Build.VERSION.SDK_INT < 30) return abs(position[1] + height - state.viewportBottomPx) <= max(2, resources.displayMetrics.density.toInt())
+    // Restore at the window's actual bottom in the SAME UI frame as IME end,
+    // even if Yoga still has the old keyboard-raised coordinates. Translation
+    // does not trigger another layout; it returns to zero as React catches up.
+    val layoutBottom = position[1] + height - translationY
+    val offset = state.viewportBottomPx - layoutBottom
+    if (abs(translationY - offset) > 0.5f) translationY = offset
+    return true
   }
   // Fabric writes visibility AFTER view.layout(). Guard that write as well as
   // onLayout, otherwise any size/prop update can reveal the dock above the IME.

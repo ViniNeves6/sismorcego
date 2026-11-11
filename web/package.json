@@ -1,0 +1,16 @@
+{
+  "name": "sismorcego-web",
+  "private": true,
+  "description": "Versão web (PWA) do Sismorcego para iPhone/navegador: as mesmas telas do app via react-native-web, com Firebase real.",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs --serve"
+  },
+  "dependencies": {
+    "esbuild": "0.25.10",
+    "leaflet": "1.9.4",
+    "react-dom": "19.1.0",
+    "react-native-web": "0.21.1",
+    "sql.js": "1.13.0"
+  }
+}

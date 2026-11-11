@@ -50,3 +50,12 @@ test('invalid coordinates are rejected before storage and cannot be displayed as
   expect(() => toStoredRecord(record, 'owner')).toThrow('Coordenadas GPS inválidas');
   expect(toRecordView({ recordId: 'invalid', location: { latitude: 91, longitude: -48 } }).gps).toBeNull();
 });
+
+test.each([['humano', 'hv-local'], ['canino', 'cf-local'], ['aves', 'av-local'], ['producao', 'pr-local']])(
+  '%s keeps the typed local da agressão in detalhes.localAgressao and back', (type, key) => {
+    const stored = toStoredRecord(view(type, { [key]: 'Sítio Boa Vista, margem do rio' }), 'owner');
+    expect(stored.detalhes.localAgressao).toBe('Sítio Boa Vista, margem do rio');
+    expect(stored.localidade).toBe('Centro');
+    expect(toRecordView(stored).details[key]).toBe('Sítio Boa Vista, margem do rio');
+    expect(toStoredRecord(view(type, { [key]: '' }), 'owner').detalhes.localAgressao).toBeNull();
+  });

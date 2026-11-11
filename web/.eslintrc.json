@@ -1,0 +1,7 @@
+{
+  "env": { "browser": true, "es2022": true },
+  "ignorePatterns": ["dist/", "node_modules/"],
+  "overrides": [
+    { "files": ["build.mjs"], "env": { "node": true, "browser": false }, "parserOptions": { "sourceType": "module", "ecmaVersion": 2022, "requireConfigFile": false, "babelOptions": { "plugins": ["@babel/plugin-syntax-import-meta"] } } }
+  ]
+}

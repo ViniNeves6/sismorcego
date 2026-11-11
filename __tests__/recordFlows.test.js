@@ -4,7 +4,7 @@ import { deleteDoc, getDocs, setDoc } from 'firebase/firestore';
 import { acceptRemoteRecordVersion } from '../src/services/recordMutations';
 import { auth } from '../src/services/firebase';
 import { addToQueue } from '../src/services/offlineQueue';
-import { addNewRecordToStorage, loadRecordsFromStorage, isRedesignSample, loadAccountProfile, updateRecordInStorage } from '../src/services/redesignData';
+import { addNewRecordToStorage, loadRecordsFromStorage, isRedesignSample, loadAccountProfile, loadReporterName, saveReporterNameToStorage, updateRecordInStorage } from '../src/services/redesignData';
 import { syncPendingRegistros } from '../src/services/syncRegistros';
 import { mergeByRecordId, excluirRegistro } from '../src/services/historico';
 import { toRecordView } from '../src/services/registroAdapter';
@@ -15,6 +15,8 @@ import { photoFingerprint, withCloudPhotoView, MAX_PHOTO_BASE64 } from '../src/s
 
 let mockRows = [];
 let mockCloud = new Map();
+let mockEvaluation = false;
+jest.mock('../src/services/appEnvironment', () => ({ get COORDINATOR_EVALUATION() { return mockEvaluation; } }));
 // Exercita persistência e sincronização reais com fronteiras nativas simuladas.
 jest.mock('../src/services/debugTestSession', () => ({ LOCAL_TEST_MODE: false }));
 jest.mock('../src/services/firebase', () => ({ auth: { currentUser: { uid: 'owner' } }, db: {} }));
@@ -49,6 +51,7 @@ jest.mock('../src/services/offlineQueue', () => ({
 }));
 let counter = 0;
 beforeEach(async () => {
+  mockEvaluation = false;
   jest.clearAllMocks();
   await AsyncStorage.clear();
   auth.currentUser = { uid: `owner-${++counter}`, displayName: 'Ana', email: 'ana@real.org' };
@@ -298,8 +301,6 @@ test('local photographs remain available after cloud refresh without uploading b
   expect(merged.city).toBe('Servidor atualizado');expect(merged.photo.uri).toBe('file:///local.jpg');
   expect(toRecordView(mergeByRecordId([{...cloud,photoBase64:'LEGACY'}],[{...local,photoHidden:true}])[0]).photo).toBeNull();
 });
-<<<<<<< Updated upstream
-=======
 
 
 test('shared evaluation UID retains different occurrence authors and masks only the account presentation', async () => {
@@ -384,4 +385,3 @@ describe('foto da ocorrência na nuvem (documento separado)', () => {
     expect(await withCloudPhotoView(missing)).toBe(missing);
   });
 });
->>>>>>> Stashed changes

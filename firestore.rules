@@ -9,7 +9,29 @@ rules_version = '2';
 // duvidas: autor/criação imutáveis; coordenador responde e publica.
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
+    // configuracoes/avaliacaoCoordenadores: enabled bool, startAt/expiresAt
+    // Timestamp. Only IAM administrators can edit. Training accounts may read this
+    // non-sensitive status even after expiry, so extensions can restore access.
+    // Normal accounts do not depend on this evaluation-only document.
+    function evaluationActive() {
+      let path = /databases/$(database)/documents/configuracoes/avaliacaoCoordenadores;
+      return exists(path) && get(path).data.enabled == true
+        && get(path).data.startAt is timestamp && get(path).data.expiresAt is timestamp
+        && get(path).data.startAt <= request.time && request.time < get(path).data.expiresAt;
+    }
+    // Contas de treinamento: a conta compartilhada de coordenador e os ACS
+    // anônimos (um por aparelho) só valem dentro do período da avaliação.
+    function trainingAccount() {
+      return request.auth.uid == 'sismorcego-teste-coordenadores'
+        || request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+    function signedIn() {
+      return request.auth != null && (!trainingAccount() || evaluationActive());
+    }
+    match /configuracoes/avaliacaoCoordenadores {
+      allow get: if request.auth != null && trainingAccount();
+      allow list, write: if false;
+    }
     function owner(uid) { return signedIn() && request.auth.uid == uid; }
     // ACS e coordenador têm a mesma autoridade de alteração: apenas o autor
     // original. Supervisão de terceiros concede leitura, nunca escrita.
@@ -36,21 +58,23 @@ service cloud.firestore {
       return d == null || (d is map && (type == 'humano' ?
         d.keys().hasOnly(['nomeAgredido','apelido','idade','sexo','ocupacaoProfissao','circunstancia',
           'circunstanciaPraiaQual','circunstanciaOutraDescricao','buscouAtendimento',
-          'naoBuscouMotivo','abrigoMorcego','abrigoTipo','abrigoDescricao'])
+          'naoBuscouMotivo','abrigoMorcego','abrigoTipo','abrigoDescricao','localAgressao'])
           && scalar(d.get('nomeAgredido',null)) && scalar(d.get('apelido',null))
           && validAge(d.get('idade',null)) && scalar(d.get('sexo',null))
           && scalar(d.get('ocupacaoProfissao',null)) && scalar(d.get('circunstancia',null))
           && scalar(d.get('circunstanciaPraiaQual',null)) && scalar(d.get('circunstanciaOutraDescricao',null))
           && scalar(d.get('buscouAtendimento',null)) && scalar(d.get('naoBuscouMotivo',null))
           && scalar(d.get('abrigoMorcego',null)) && scalar(d.get('abrigoTipo',null)) && scalar(d.get('abrigoDescricao',null))
+          && scalar(d.get('localAgressao',null))
         : d.keys().hasOnly(['especie','circunstancia','circunstanciaDescricao','participouVacinacao',
           'naoParticipouMotivo','naoParticipouDescricao','avisouMunicipio','naoAvisouMotivo',
-          'naoAvisouDescricao','avisouAdeparaOuMunicipio'])
+          'naoAvisouDescricao','avisouAdeparaOuMunicipio','localAgressao'])
           && scalar(d.get('especie',null)) && scalar(d.get('circunstancia',null))
           && scalar(d.get('circunstanciaDescricao',null)) && scalar(d.get('participouVacinacao',null))
           && scalar(d.get('naoParticipouMotivo',null)) && scalar(d.get('naoParticipouDescricao',null))
           && scalar(d.get('avisouMunicipio',null)) && scalar(d.get('naoAvisouMotivo',null))
-          && scalar(d.get('naoAvisouDescricao',null)) && scalar(d.get('avisouAdeparaOuMunicipio',null))));
+          && scalar(d.get('naoAvisouDescricao',null)) && scalar(d.get('avisouAdeparaOuMunicipio',null))
+          && scalar(d.get('localAgressao',null))));
     }
     function validLocation(input) {
       let l = input;

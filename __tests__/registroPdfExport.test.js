@@ -23,6 +23,10 @@ const record = {
   detalhes: { nomeAgredido: 'Pessoa Exemplo', apelido: 'Apelido Exemplo', idade: 27, sexo: 'F' },
 };
 const model = (r = record, image = null) => buildFichaModel(r, buildCamposFicha(r, { includeNames: true, includeLocation: true }), image);
+test.each(['Coordenadora Ana', 'Coordenador Bruno'])('PDF retains the occurrence author %s instead of the shared account label', author => {
+  const html = buildFichaHtml(model({ ...record, uid: 'shared', nomeAcs: author, nomeNotificador: author }));
+  expect(html).toContain(author); expect(html).not.toContain('Sismorcego Teste');
+});
 beforeEach(() => jest.clearAllMocks());
 afterEach(() => { delete NativeModules.SismorcegoDocuments; });
 
@@ -106,4 +110,12 @@ test.each(['humano', 'caninoFelino', 'aves', 'producao', undefined])('exports th
   const pdf = await PDFDocument.load(await buildStyledFichaPdf(m));
   expect(pdf.getPageCount()).toBeGreaterThan(0);
   expect(m.sections.map(section => section.title)).toContain('Georreferenciamento');
+});
+
+test('PDF lists the local da agressão only when it was filled', () => {
+  const campos = r => buildCamposFicha(r, { includeNames: true, includeLocation: true });
+  const base = { tipoVitima: 'aves', municipio: 'Belém', localidade: 'Centro', detalhes: { especie: 'galinha' } };
+  expect(campos(base).some(c => c.label === 'Local da agressão')).toBe(false);
+  expect(campos({ ...base, detalhes: { ...base.detalhes, localAgressao: 'Ilha do Combu' } }))
+    .toContainEqual({ label: 'Local da agressão', value: 'Ilha do Combu' });
 });

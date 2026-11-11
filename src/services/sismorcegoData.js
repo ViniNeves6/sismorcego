@@ -444,6 +444,24 @@ export const VICTIM_FORMS = {
   },
 };
 
+// Último bloco de todos os formulários: o local da agressão pode não ser o
+// local onde o ACS está coletando (município/comunidade da ficha).
+export const LOCAL_AGRESSAO_FIELD_KEYS = { humano: 'hv-local', canino: 'cf-local', aves: 'av-local', producao: 'pr-local' };
+Object.entries(LOCAL_AGRESSAO_FIELD_KEYS).forEach(([victimKey, key]) => {
+  VICTIM_FORMS[victimKey].groups.push({
+    title: 'Local da agressão',
+    fields: [{
+      key,
+      label: 'Onde aconteceu a agressão?',
+      optionalTag: 'Opcional',
+      type: 'text',
+      required: false,
+      placeholder: 'Se foi em outro lugar. Ex.: sítio, rio, comunidade',
+      errorMsg: 'Informe o local.',
+    }],
+  });
+});
+
 export function isVictimFieldVisible(field, values = {}) {
   if (!field || !field.showWhen) return true;
   return (values[field.showWhen.key] || '') === field.showWhen.equals;

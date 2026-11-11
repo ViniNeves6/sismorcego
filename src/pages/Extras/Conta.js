@@ -10,6 +10,7 @@ import useAccessibility from '../../hooks/useAccessibility';
 import useSpeakOnMount from '../../hooks/useSpeakOnMount';
 import logger from '../../utils/logger';
 import { hasProfileChanges, normalizedProfile } from '../../services/editChanges';
+import { COORDINATOR_EVALUATION } from '../../services/appEnvironment';
 
 const EMAIL_RE = /\S+@\S+\.\S+/;
 
@@ -20,8 +21,8 @@ export default function Conta() {
   const toast = useToast();
   useSpeakOnMount('Tela de conta. Você pode atualizar suas informações pessoais.');
 
-  const [nome, setNome] = useState(user?.displayName || '');
-  const [email, setEmail] = useState(user?.email || '');
+  const [nome, setNome] = useState(COORDINATOR_EVALUATION ? 'Sismorcego' : user?.displayName || '');
+  const [email, setEmail] = useState(COORDINATOR_EVALUATION ? '************' : user?.email || '');
   const [senha, setSenha] = useState('');
   const [confirmaSenha, setConfirmaSenha] = useState('');
   const [foto, setFoto] = useState(null);
@@ -68,7 +69,7 @@ export default function Conta() {
   };
 
   const salvar = async () => {
-    if (saving || !changed) return;
+    if (COORDINATOR_EVALUATION || saving || !changed) return;
     if (!validate()) {
       if (textToSpeechEnabled) speak('Erro. Verifique os campos destacados.');
       return;
@@ -96,7 +97,7 @@ export default function Conta() {
   return (
     <ScrollScreen
       header={<ScreenHeader title="Conta" />}
-      footer={
+      footer={!COORDINATOR_EVALUATION &&
         <FooterBar>
           <Button title="Salvar alterações" icon="check" onPress={salvar} loading={saving}
             disabled={!changed} variant={!changed ? 'muted' : 'primary'} />
@@ -113,10 +114,11 @@ export default function Conta() {
       </View>
 
       <Section title="Dados pessoais">
-        <TextField label="Nome de usuário" value={nome} onChangeText={setNome} autoCapitalize="words" autoComplete="name" />
+        <TextField label="Nome de usuário" value={COORDINATOR_EVALUATION ? 'Sismorcego' : nome} onChangeText={setNome} editable={!COORDINATOR_EVALUATION} autoCapitalize="words" autoComplete="name" />
         <TextField
           label="E-mail"
-          value={email}
+          editable={!COORDINATOR_EVALUATION}
+          value={COORDINATOR_EVALUATION ? '************' : email}
           onChangeText={setEmail}
           error={errors.email}
           keyboardType="email-address"
@@ -126,7 +128,7 @@ export default function Conta() {
         />
       </Section>
 
-      <Section title="Alterar senha" description="Deixe em branco para manter a senha atual.">
+      {!COORDINATOR_EVALUATION && <Section title="Alterar senha" description="Deixe em branco para manter a senha atual.">
         <TextField
           label="Nova senha"
           value={senha}
@@ -145,7 +147,7 @@ export default function Conta() {
           autoCapitalize="none"
           autoComplete="new-password"
         />
-      </Section>
+      </Section>}
     </ScrollScreen>
   );
 }

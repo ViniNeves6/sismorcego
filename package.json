@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
-    "android:apk": "node scripts/build-android-debug.cjs",
+    "android:apk": "node scripts/build-android-debug.cjs --homologation",
     "android:apk:homologacao": "node scripts/build-android-debug.cjs --homologation",
+    "android:apk:debug": "node scripts/build-android-debug.cjs --debug",
+    "android:apk:emulador": "node scripts/build-android-debug.cjs --emulator",
     "test:firebase:running": "node scripts/test-firebase-emulators.cjs",
     "test:firebase": "node scripts/run-firebase-emulators.cjs",
     "ios": "react-native run-ios",

@@ -17,6 +17,7 @@ const mappings = {
     ['hv-abrigo', 'abrigoMorcego', options.SIM_NAO],
     ['hv-tipo', 'abrigoTipo', [...options.TIPO_ABRIGO_MORCEGO, { value: 'outro', label: 'Outro' }]],
     ['hv-desc', 'abrigoDescricao'],
+    ['hv-local', 'localAgressao'],
   ],
   canino: [
     ['cf-especie', 'especie', options.ESPECIE_CANINO_FELINO],
@@ -28,12 +29,14 @@ const mappings = {
     ['cf-aviso', 'avisouMunicipio', options.SIM_NAO],
     ['cf-aviso-motivo', 'naoAvisouMotivo', options.MOTIVO_NAO_AVISOU],
     ['cf-aviso-motivo-desc', 'naoAvisouDescricao'],
+    ['cf-local', 'localAgressao'],
   ],
   aves: [
     ['av-especie', 'especie', options.ESPECIE_AVES],
     ['av-circ', 'circunstancia', options.CIRCUNSTANCIA_AVES], ['av-circ-desc', 'circunstanciaDescricao'],
     ['av-aviso', 'avisouAdeparaOuMunicipio', options.SIM_NAO],
     ['av-motivo', 'naoAvisouMotivo', options.MOTIVO_NAO_AVISOU], ['av-motivo-desc', 'naoAvisouDescricao'],
+    ['av-local', 'localAgressao'],
   ],
   producao: [
     ['pr-especie', 'especie', options.ESPECIE_PRODUCAO],
@@ -42,6 +45,7 @@ const mappings = {
     ['pr-vac-motivo', 'naoParticipouDescricao'],
     ['pr-aviso', 'avisouAdeparaOuMunicipio', options.SIM_NAO],
     ['pr-aviso-motivo', 'naoAvisouMotivo', options.MOTIVO_NAO_AVISOU], ['pr-aviso-motivo-desc', 'naoAvisouDescricao'],
+    ['pr-local', 'localAgressao'],
   ],
 };
 const titles = { humano: 'Agressão em Humano', canino: 'Canino / Felino', aves: 'Aves', producao: 'Animal de produção' };

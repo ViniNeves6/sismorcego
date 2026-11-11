@@ -236,7 +236,9 @@ function CreditGroupAccordion({ group, reduceMotion = false }) {
 export default function MaisScreens({
   activeSubscreen,
   setActiveSubscreen,
-  accountProfile,
+  accountProfile: sourceAccountProfile,
+  managedAccount = false,
+  canSignOut = !managedAccount,
   onSaveAccountProfile,
   onSaveAvatarPhoto,
   doubtsView,
@@ -262,6 +264,8 @@ export default function MaisScreens({
   bottomInset = 0,
   keyboardVisible = false,
 }) {
+  const accountProfile = managedAccount
+    ? { ...sourceAccountProfile, username: 'Sismorcego', email: '************' } : sourceAccountProfile;
   const systemReduceMotion = useReduceMotion();
   const reduceMotion = Boolean(accessibility?.reduceMotion || systemReduceMotion);
   const { ttsError, ttsInitializing, speak } = useAccessibility();
@@ -307,7 +311,7 @@ export default function MaisScreens({
     ? sentences('Configurações de acessibilidade', `Alto contraste ${accessibility?.highContrast ? 'ativado' : 'desativado'}`,
       `Leitura por voz ${accessibility?.ttsEnabled ? 'ativada' : 'desativada'}`, `Tamanho do texto: ${fontPercent} por cento`,
       `Redução de animações ${reduceMotion ? 'ativada' : 'desativada'}`, 'Use Ouvir exemplo de leitura para testar o áudio')
-    : activeSubscreen === 'sub-account' ? 'Minha conta. Foto do perfil e dados pessoais. Alterar senha e salvar alterações'
+    : activeSubscreen === 'sub-account' || (managedAccount && activeSubscreen === 'sub-password') ? managedAccount ? 'Minha conta. Sismorcego. Conta de avaliação gerenciada pela equipe. Foto do perfil.' : 'Minha conta. Foto do perfil e dados pessoais. Alterar senha e salvar alterações'
     : activeSubscreen === 'sub-password' ? 'Alterar senha. Informe a nova senha e a confirmação. O conteúdo das senhas não será lido'
     : activeSubscreen === 'sub-faq' ? sentences(doubtsView === 'compose' ? 'Nova dúvida. Escreva sua pergunta e toque em Enviar pergunta'
       : doubtsView === 'faq' ? 'Perguntas frequentes' : 'Minhas perguntas',
@@ -384,7 +388,7 @@ export default function MaisScreens({
   };
 
   /* 1. MINHA CONTA */
-  if (activeSubscreen === 'sub-account') {
+  if (activeSubscreen === 'sub-account' || (managedAccount && activeSubscreen === 'sub-password')) {
     const initials = getReporterInitials(username);
     return (
       <View style={styles.screen}>
@@ -451,6 +455,8 @@ export default function MaisScreens({
                 ]}
                 value={username}
                 accessibilityLabel="Nome de usuário"
+                editable={!managedAccount}
+                contextMenuHidden={managedAccount}
                 onChangeText={setUsername}
                 onFocus={() => setFocusedField('acc_user')}
                 onBlur={() => setFocusedField(null)}
@@ -465,6 +471,8 @@ export default function MaisScreens({
                 ]}
                 value={email}
                 accessibilityLabel="E-mail"
+                editable={!managedAccount}
+                contextMenuHidden={managedAccount}
                 onChangeText={setEmail}
                 onFocus={() => setFocusedField('acc_email')}
                 onBlur={() => setFocusedField(null)}
@@ -474,7 +482,7 @@ export default function MaisScreens({
             </View>
           </View>
 
-          <Pressable
+          {!managedAccount && <Pressable
             onPress={() => {
               setNewPass('');
               setConfirmPass('');
@@ -490,9 +498,9 @@ export default function MaisScreens({
           >
             <LockIcon size={17} color="#6824D6" />
             <Text style={styles.forgotPassBtnText}>Alterar senha</Text>
-          </Pressable>
+          </Pressable>}
 
-          <Pressable
+          {!managedAccount && <Pressable
             disabled={accountSaving || !accountChanged}
             accessibilityRole="button"
             accessibilityState={{ disabled: accountSaving || !accountChanged }}
@@ -515,7 +523,8 @@ export default function MaisScreens({
             ]}
           >
             <Text style={[styles.primaryBtnText, (accountSaving || !accountChanged) && styles.primaryBtnDisabledText]}>{accountSaving ? 'Salvando...' : 'Salvar alterações'}</Text>
-          </Pressable>
+          </Pressable>}
+          {managedAccount && <Text style={styles.accountInfoSub}>Conta de avaliação gerenciada pela equipe. A foto é salva neste aparelho.</Text>}
         </ScrollView>
       </View>
     );
@@ -1442,7 +1451,7 @@ export default function MaisScreens({
           <View style={styles.accountInfo}>
             <Text style={styles.accountInfoTitle}>Minha conta</Text>
             <Text style={styles.accountInfoSub}>
-              Editar perfil, foto e senha de acesso
+              {managedAccount ? 'Foto e dados da avaliação' : 'Editar perfil, foto e senha de acesso'}
             </Text>
           </View>
           <ChevronRightIcon size={18} color="#796E92" strokeWidth={2.2} />
@@ -1477,7 +1486,7 @@ export default function MaisScreens({
         </View>
 
         {/* Danger Sair Group */}
-        <View style={styles.menuGroup}>
+        {canSignOut && <View style={styles.menuGroup}>
           <Pressable
             onPress={onSignOut}
             style={({ pressed }) => [
@@ -1494,7 +1503,7 @@ export default function MaisScreens({
             </Text>
             <ChevronRightIcon size={18} color="#796E92" strokeWidth={2.2} />
           </Pressable>
-        </View>
+        </View>}
       </ScrollView>
     </View>
   );
